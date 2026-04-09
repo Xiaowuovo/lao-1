@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="./remainder.css">
+</head>
+
+<body>
+
+  <!-- 顶部导航栏 -->
+  <header>
+    <div class="header-content">
+      <div class="logo">校园事务自动提醒系统</div>
+      <div class="user-menu">
+        <span id="userName">管理员</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区域 -->
+  <div class="container">
+
+    <!-- 标签页导航 -->
+    <div class="nav">
+      <ul>
+        <li><a href="index.html">首页</a></li>
+        <li><a href="#" class="active">提醒管理</a></li>
+        <li><a href="setting.html">设置与统计</a></li>
+      </ul>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span>状态筛选:</span>
+        <button class="filter-btn active" onclick="filterReminders('all')">全部</button>
+        <button class="filter-btn" onclick="filterReminders('pending')">未提醒</button>
+        <button class="filter-btn" onclick="filterReminders('reminded')">已提醒</button>
+        <button class="filter-btn" onclick="filterReminders('completed')">已完成</button>
+        <button class="filter-btn" onclick="filterReminders('postponed')">已延期</button>
+      </div>
+
+      <div class="filter-group">
+        <span>时间筛选:</span>
+        <button class="filter-btn" onclick="filterByTime('today')">今天</button>
+        <button class="filter-btn" onclick="filterByTime('week')">本周</button>
+        <button class="filter-btn active" onclick="filterByTime('month')">本月</button>
+        <button class="filter-btn" onclick="filterByTime('all')">全部</button>
+      </div>
+    </div>
+
+    <!-- 提醒列表 -->
+    <div id="remindersContainer">
+      <!-- 提醒卡片将通过JavaScript动态生成 -->
+    </div>
+
+    <!-- 统计栏 -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-value" id="totalReminders">12</div>
+        <div class="stat-label">本月提醒总数</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-value" id="completedReminders">5</div>
+        <div class="stat-label">已完成</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-value" id="pendingReminders">7</div>
+        <div class="stat-label">待处理</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-value" id="completionRate">42%</div>
+        <div class="stat-label">完成率</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部信息 -->
+  <footer>
+    <p>校园事务自动提醒系统  Lao</p>
+  </footer>
+
+  <script src="remainder.js"></script>
+
+</body>
+
+</html>

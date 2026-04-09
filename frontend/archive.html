@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>历史归档 - 校园事务自动提醒系统</title>
+  <link rel="stylesheet" href="./remainder.css">
+  <style>
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    
+    .search-bar input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    
+    .archive-filters {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    
+    .archive-card {
+      background: white;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border-left: 4px solid #95a5a6;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .archive-card.completed {
+      border-left-color: #27ae60;
+    }
+    
+    .archive-card.cancelled {
+      border-left-color: #e74c3c;
+    }
+    
+    .archive-card.expired {
+      border-left-color: #f39c12;
+    }
+    
+    .archive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .archive-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    
+    .archive-date {
+      color: #7f8c8d;
+      font-size: 14px;
+    }
+    
+    .archive-details {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
+    
+    .export-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="header-content">
+      <div class="logo">校园事务自动提醒系统</div>
+      <div class="user-menu">
+        <span id="userName">管理员</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="nav">
+      <ul>
+        <li><a href="index.html">首页</a></li>
+        <li><a href="remainder.html">提醒管理</a></li>
+        <li><a href="schedule.html">课表管理</a></li>
+        <li><a href="#" class="active">历史归档</a></li>
+        <li><a href="setting.html">设置与统计</a></li>
+      </ul>
+    </div>
+
+    <h2>历史归档</h2>
+    
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="搜索事件标题或地点...">
+      <button class="primary-btn" onclick="searchArchive()">搜索</button>
+    </div>
+    
+    <div class="archive-filters">
+      <button class="filter-btn active" onclick="filterArchive('all')">全部</button>
+      <button class="filter-btn" onclick="filterArchive('completed')">已完成</button>
+      <button class="filter-btn" onclick="filterArchive('cancelled')">已取消</button>
+      <button class="filter-btn" onclick="filterArchive('expired')">已过期</button>
+    </div>
+
+    <div class="export-section">
+      <h3>导出数据</h3>
+      <p>可以将历史记录导出为CSV文件，方便在Excel中查看和分析</p>
+      <button class="primary-btn" onclick="exportArchive()">导出为CSV</button>
+    </div>
+
+    <div id="archiveContainer">
+      <!-- 归档记录将通过JavaScript动态生成 -->
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-value" id="totalArchive">0</div>
+        <div class="stat-label">总归档数</div>
+      </div>
+      
+      <div class="stat-item">
+        <div class="stat-value" id="completedArchive">0</div>
+        <div class="stat-label">已完成</div>
+      </div>
+      
+      <div class="stat-item">
+        <div class="stat-value" id="cancelledArchive">0</div>
+        <div class="stat-label">已取消</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>校园事务自动提醒系统 © Lao</p>
+  </footer>
+
+  <script src="archive.js"></script>
+</body>
+</html>

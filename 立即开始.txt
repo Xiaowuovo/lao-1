@@ -1,0 +1,142 @@
+========================================
+立即开始 - 5步运行系统
+========================================
+
+【重要】不用删除旧文件，直接按以下步骤操作：
+
+
+第1步：初始化数据库
+========================================
+1. 按Win+R，输入 cmd，回车（打开命令提示符）
+2. 输入以下命令（一行一行输入）：
+
+cd /d E:\Desktop\all\客户tmp\laojiayi
+mysql -u root -p < init_database.sql
+
+3. 输入MySQL密码（如果没设置密码，直接回车）
+4. 看到提示信息说明成功
+
+
+第2步：配置数据库密码
+========================================
+1. 打开文件：backend\.env
+2. 找到第4行：DB_PASSWORD=
+3. 改为：DB_PASSWORD=你的MySQL密码
+   （如果没密码，保持空着：DB_PASSWORD=）
+4. 保存文件（Ctrl+S）
+
+
+第3步：安装Python依赖
+========================================
+在CMD窗口输入：
+
+cd /d E:\Desktop\all\客户tmp\laojiayi\backend
+python -m venv venv
+venv\Scripts\activate.bat
+pip install -r requirements.txt
+
+等待安装完成（可能需要几分钟）
+
+
+第4步：启动后端
+========================================
+在同一个CMD窗口，继续输入：
+
+python api_with_auth.py
+
+看到"Running on http://0.0.0.0:5000"说明后端启动成功
+【不要关闭这个窗口】
+
+
+第5步：启动前端
+========================================
+1. 再打开一个新的CMD窗口（Win+R -> cmd）
+2. 输入：
+
+cd /d E:\Desktop\all\客户tmp\laojiayi
+python -m http.server 8080
+
+3. 看到"Serving HTTP on"说明前端启动成功
+
+
+第6步：访问系统
+========================================
+打开浏览器，访问：
+http://localhost:8080/frontend/login.html
+
+测试账号：
+学号：202205570603
+密码：xtu123456
+
+
+========================================
+常见问题快速解决
+========================================
+
+问题1：提示"mysql不是内部或外部命令"
+解决：MySQL没有添加到环境变量
+方法：找到MySQL安装目录的bin文件夹（如C:\Program Files\MySQL\MySQL Server 8.0\bin）
+     在该目录打开CMD，然后执行mysql命令
+
+问题2：提示"python不是内部或外部命令"
+解决：Python没有安装或没有添加到环境变量
+方法：重新安装Python并勾选"Add Python to PATH"
+
+问题3：数据库初始化失败
+解决：检查MySQL服务是否启动
+方法：按Win+R，输入services.msc，找到MySQL服务，点击启动
+
+问题4：pip安装失败
+解决：网络问题或镜像源问题
+方法：使用国内镜像：
+     pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+问题5：后端启动报错"No module named 'xxx'"
+解决：依赖未安装完整
+方法：确保在虚拟环境中（看到(venv)前缀），重新执行pip install命令
+
+问题6：前端无法访问
+解决：端口被占用
+方法：换一个端口，如：python -m http.server 8081
+
+
+========================================
+如果上述步骤都失败
+========================================
+
+请按以下步骤检查：
+
+1. Python是否安装？
+   打开CMD输入：python --version
+   应该显示Python 3.8或更高版本
+
+2. MySQL是否安装？
+   打开CMD输入：mysql --version
+   应该显示MySQL 8.0或更高版本
+
+3. MySQL服务是否启动？
+   打开CMD输入：net start MySQL80
+   （服务名可能是MySQL、MySQL80等）
+
+如果Python或MySQL未安装：
+- Python下载：https://www.python.org/downloads/
+- MySQL下载：https://dev.mysql.com/downloads/mysql/
+
+
+========================================
+成功后的操作
+========================================
+
+日常使用：
+1. 启动后端：双击"启动系统.bat"（或按上述第4、5步手动启动）
+2. 访问系统：http://localhost:8080/frontend/login.html
+3. 开始使用！
+
+关闭系统：
+1. 关闭后端CMD窗口（Ctrl+C）
+2. 关闭前端CMD窗口（Ctrl+C）
+
+
+========================================
+
+有任何问题，把错误信息发给我！

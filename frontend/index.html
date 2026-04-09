@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+
+  <!-- 顶部导航栏 -->
+  <header>
+    <div class="header-content">
+      <div class="logo">校园事务自动提醒系统</div>
+      <div class="user-menu">
+        <span id="userName">管理员</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区域 -->
+  <div class="container">
+
+    <!-- 标签页导航 -->
+    <div class="nav">
+      <ul>
+        <li><a href="#" class="active">首页</a></li>
+        <li><a href="remainder.html">提醒管理</a></li>
+        <li><a href="setting.html">设置与统计</a></li>
+      </ul>
+    </div>
+
+    <div class="main-content">
+      <!-- 左侧面板：上传文本 -->
+      <div class="panel">
+        <h2>上传文本</h2>
+        <textarea class="text-input" id="inputText" placeholder="请粘贴校园公告、邮件或校历内容..."></textarea>
+
+        <div class="file-upload">
+          <div class="upload-btn" onclick="document.getElementById('fileInput').click()">
+            <span>选择文件上传（支持.txt/.docx/.pdf格式）</span>
+          </div>
+          <input type="file" id="fileInput" style="display:none" onchange="handleFileSelect(event)">
+          <div id="fileName" style="margin-top:8px; color:#7f8c8d; font-size:14px;"></div>
+        </div>
+
+        <button class="primary-btn" onclick="extractEvents()">提取事件</button>
+      </div>
+
+      <!-- 右侧面板：事件提取结果 -->
+      <div class="panel">
+        <h2>事件提取结果</h2>
+        <div id="eventsContainer">
+          <!-- 事件卡片将通过JavaScript动态生成 -->
+          <div class="empty-state">
+            <p>暂无提取结果</p>
+            <p>请上传文本或粘贴内容后点击"提取事件"按钮</p>
+          </div>
+        </div>
+        <button class="add-all-btn" id="addAllBtn" style="display:none;" onclick="addAllReminders()">一键生成所有提醒</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部信息 -->
+  <footer>
+    <p>校园事务自动提醒系统 © Lao</p>
+  </footer>
+
+  <script src="index.js"></script>
+</body>
+
+</html>

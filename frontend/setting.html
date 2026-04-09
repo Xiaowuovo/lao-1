@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="./setting.css">
+</head>
+
+<body>
+  <!-- 顶部导航栏 -->
+  <header>
+    <div class="header-content">
+      <div class="logo">校园事务自动提醒系统</div>
+      <div class="user-menu">
+        <span id="userName">管理员</span>
+      </div>
+    </div>
+  </header>
+  </div>
+  <!-- 主内容区域 -->
+  <div class="container">
+
+    <!-- 标签页导航 -->
+    <div class="nav">
+      <ul>
+        <li><a href="index.html">首页</a></li>
+        <li><a href="remainder.html">提醒管理</a></li>
+        <li><a href="#" class="active">设置与统计</a></li>
+      </ul>
+    </div>
+
+    <div class="settings-container">
+      <!-- 左侧面板：个人设置 -->
+      <div class="panel settings-panel">
+        <h2>个人设置</h2>
+
+        <div class="form-group">
+          <label for="advanceTime">默认提前时间</label>
+          <select id="advanceTime">
+            <option value="5">提前5分钟</option>
+            <option value="10">提前10分钟</option>
+            <option value="30" selected>提前30分钟</option>
+            <option value="60">提前1小时</option>
+            <option value="120">提前1天</option>
+            <option value="1440">自定义</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>提醒方式</label>
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="webNotify" checked>
+              <label for="webNotify">网页通知</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="emailNotify">
+              <label for="emailNotify">邮件提醒</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="smsNotify">
+              <label for="smsNotify">短信提醒</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" id="emailGroup" style="display:none;">
+          <label for="emailAddress">邮件地址</label>
+          <input type="email" id="emailAddress" placeholder="请输入接收提醒的邮箱">
+        </div>
+
+        <div class="form-group">
+          <label>重复提醒设置</label>
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="repeatDaily">
+              <label for="repeatDaily">每天重复提醒（直到完成）</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="repeatWeekly">
+              <label for="repeatWeekly">每周重复提醒</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="repeatMonthly">
+              <label for="repeatMonthly">每月重复提醒</label>
+            </div>
+          </div>
+        </div>
+
+        <button class="save-btn" onclick="saveSettings()">保存设置</button>
+      </div>
+
+      <!-- 右侧面板：统计与可视化 -->
+      <div class="panel stats-panel">
+        <h2>统计与可视化</h2>
+
+        <div class="chart-container">
+          <!-- 本月提醒趋势 -->
+          <div class="chart-box">
+            <div class="chart-title">本月提醒趋势</div>
+            <div class="chart" id="trendChart">
+              <!-- 柱状图使用JavaScript动态生成 -->
+            </div>
+          </div>
+
+          <!-- 事件类型分布 -->
+          <div class="chart-box">
+            <div class="chart-title">事件类型分布</div>
+            <div class="pie-chart"></div>
+            <div class="pie-legend" id="typeLegend">
+              <!-- 图例使用JavaScript动态生成 -->
+            </div>
+          </div>
+
+          <!-- 提醒完成率 -->
+          <div class="chart-box">
+            <div class="chart-title">提醒完成率</div>
+            <div class="completion-rate" id="completionRate">85%</div>
+            <div class="completion-label">
+              <div>本月已处理: <strong id="processedCount">17</strong> 个提醒</div>
+              <div>本月未处理: <strong id="unprocessedCount">3</strong> 个提醒</div>
+            </div>
+          </div>
+
+          <button class="export-btn" onclick="exportStats()">导出统计数据</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部信息 -->
+  <footer>
+    <p>校园事务自动提醒系统  Lao</p>
+  </footer>
+
+  <script src="setting.js"></script>
+</body>
+
+</html>

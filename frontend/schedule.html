@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>课表管理 - 校园事务自动提醒系统</title>
+  <link rel="stylesheet" href="./remainder.css">
+  <style>
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: 80px repeat(7, 1fr);
+      gap: 1px;
+      background: #ddd;
+      margin: 20px 0;
+    }
+    
+    .schedule-cell {
+      background: white;
+      padding: 10px;
+      min-height: 80px;
+      font-size: 12px;
+    }
+    
+    .schedule-header {
+      background: #3498db;
+      color: white;
+      font-weight: bold;
+      text-align: center;
+      padding: 15px 10px;
+    }
+    
+    .time-slot {
+      background: #ecf0f1;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .course-item {
+      background: #e3f2fd;
+      border-left: 3px solid #2196f3;
+      padding: 8px;
+      margin: 2px 0;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    .course-item:hover {
+      background: #bbdefb;
+    }
+    
+    .course-name {
+      font-weight: bold;
+      color: #1976d2;
+    }
+    
+    .course-location {
+      font-size: 11px;
+      color: #666;
+    }
+    
+    .add-course-form {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin: 20px 0;
+    }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="header-content">
+      <div class="logo">校园事务自动提醒系统</div>
+      <div class="user-menu">
+        <span id="userName">管理员</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="nav">
+      <ul>
+        <li><a href="index.html">首页</a></li>
+        <li><a href="remainder.html">提醒管理</a></li>
+        <li><a href="#" class="active">课表管理</a></li>
+        <li><a href="archive.html">历史归档</a></li>
+        <li><a href="setting.html">设置与统计</a></li>
+      </ul>
+    </div>
+
+    <h2>我的课表</h2>
+    
+    <button class="primary-btn" onclick="toggleAddCourseForm()">+ 添加课程</button>
+    
+    <div id="addCourseForm" class="add-course-form" style="display:none;">
+      <h3>添加课程</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>课程名称 *</label>
+          <input type="text" id="courseName" placeholder="如：数据结构">
+        </div>
+        <div class="form-group">
+          <label>任课教师</label>
+          <input type="text" id="teacher" placeholder="如：张老师">
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label>星期 *</label>
+          <select id="dayOfWeek">
+            <option value="1">星期一</option>
+            <option value="2">星期二</option>
+            <option value="3">星期三</option>
+            <option value="4">星期四</option>
+            <option value="5">星期五</option>
+            <option value="6">星期六</option>
+            <option value="7">星期日</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>上课地点</label>
+          <input type="text" id="location" placeholder="如：逸夫楼101">
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label>开始时间 *</label>
+          <input type="time" id="startTime" value="08:00">
+        </div>
+        <div class="form-group">
+          <label>结束时间 *</label>
+          <input type="time" id="endTime" value="09:40">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label>上课周次</label>
+        <input type="text" id="weeks" placeholder="如：1-16周" value="1-18">
+      </div>
+      
+      <button class="primary-btn" onclick="addCourse()">保存课程</button>
+      <button class="secondary-btn" onclick="toggleAddCourseForm()">取消</button>
+    </div>
+
+    <div class="schedule-grid" id="scheduleGrid">
+      <!-- 课表网格将由JavaScript生成 -->
+    </div>
+  </div>
+
+  <footer>
+    <p>校园事务自动提醒系统 © Lao</p>
+  </footer>
+
+  <script src="schedule.js"></script>
+</body>
+</html>
