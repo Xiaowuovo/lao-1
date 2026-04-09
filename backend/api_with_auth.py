@@ -52,6 +52,10 @@ def login_required(f):
     """需要登录的接口装饰器"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # OPTIONS请求直接放行（CORS预检）
+        if request.method == 'OPTIONS':
+            return '', 200
+        
         # 从请求头或cookie获取token
         token = request.headers.get('Authorization')
         if not token and request.cookies.get('session_token'):
