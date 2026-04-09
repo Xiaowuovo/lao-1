@@ -6,6 +6,10 @@ from werkzeug.utils import secure_filename
 from functools import wraps
 import os
 import json
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 from auth import AuthManager
 from event_enhanced import EnhancedEventExtractor

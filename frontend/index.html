@@ -69,7 +69,31 @@
     <p>校园事务自动提醒系统 © Lao</p>
   </footer>
 
+  <script src="auth-check.js"></script>
   <script src="index.js"></script>
+  <script>
+    // 页面加载时检查登录状态
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!checkAuth()) {
+        return;
+      }
+      
+      // 更新用户显示
+      const userInfo = getCurrentUser();
+      if (userInfo) {
+        document.getElementById('userName').textContent = userInfo.real_name || userInfo.username;
+        
+        // 添加用户菜单功能
+        const userMenu = document.querySelector('.user-menu');
+        userMenu.style.cursor = 'pointer';
+        userMenu.onclick = function() {
+          if (confirm('确定要退出登录吗？')) {
+            logout();
+          }
+        };
+      }
+    });
+  </script>
 </body>
 
 </html>
