@@ -1,5 +1,13 @@
 const API_BASE_URL = 'http://localhost:5000/api';
-const USER_ID = 1;
+
+// 获取认证token
+function getAuthHeaders() {
+    const token = localStorage.getItem('sessionToken');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
 
 let schedules = [];
 
@@ -15,11 +23,18 @@ const weekdays = ['', '星期一', '星期二', '星期三', '星期四', '星�
 
 async function loadSchedule() {
     try {
-        const response = await fetch(`${API_BASE_URL}/getSchedule?user_id=${USER_ID}`);
+        const response = await fetch(`${API_BASE_URL}/getSchedule`, {
+            headers: getAuthHeaders()
+        });
         const result = await response.json();
         
+        if (result.require_login) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
         if (result.success) {
-            schedules = result.schedules;
+            schedules = result.data || [];
             renderScheduleGrid();
         }
     } catch (error) {
@@ -97,16 +112,14 @@ async function addCourse() {
     try {
         const response = await fetch(`${API_BASE_URL}/addCourse`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
-                user_id: USER_ID,
                 course_name: courseName,
                 teacher: teacher,
                 day_of_week: dayOfWeek,
                 location: location,
                 start_time: startTime,
-                end_time: endTime,
-                weeks: weeks
+                end_time: endTime
             })
         });
         
@@ -156,7 +169,7 @@ async function deleteCourse(scheduleId) {
     try {
         const response = await fetch(`${API_BASE_URL}/deleteCourse`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ schedule_id: scheduleId })
         });
         

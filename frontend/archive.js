@@ -1,5 +1,13 @@
 const API_BASE_URL = 'http://localhost:5000/api';
-const USER_ID = 1;
+
+// 获取认证token
+function getAuthHeaders() {
+    const token = localStorage.getItem('sessionToken');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
 
 let archives = [];
 let currentFilter = 'all';
@@ -7,13 +15,24 @@ let currentFilter = 'all';
 async function loadArchive() {
     try {
         const search = document.getElementById('searchInput').value;
-        const url = `${API_BASE_URL}/getArchive?user_id=${USER_ID}&limit=100${search ? '&search=' + search : ''}`;
+        let url = `${API_BASE_URL}/getArchive?page=1&page_size=100`;
         
-        const response = await fetch(url);
+        if (search) {
+            url = `${API_BASE_URL}/searchArchive?keyword=${encodeURIComponent(search)}`;
+        }
+        
+        const response = await fetch(url, {
+            headers: getAuthHeaders()
+        });
         const result = await response.json();
         
+        if (result.require_login) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
         if (result.success) {
-            archives = result.archives;
+            archives = search ? result.data : (result.data.events || []);
             displayArchive();
             updateStatistics();
         }
@@ -106,20 +125,25 @@ function updateStatistics() {
 
 async function exportArchive() {
     try {
-        const response = await fetch(`${API_BASE_URL}/exportArchive?user_id=${USER_ID}`);
-        const result = await response.json();
+        const token = localStorage.getItem('sessionToken');
+        const response = await fetch(`${API_BASE_URL}/exportArchive`, {
+            headers: {
+                'Authorization': token ? `Bearer ${token}` : ''
+            }
+        });
         
-        if (result.success) {
+        if (response.ok) {
+            const csvContent = await response.text();
             // 创建下载链接
-            const blob = new Blob([result.data], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = result.filename;
+            link.download = 'archive.csv';
             link.click();
             
             alert('导出成功！');
         } else {
-            alert(`导出失败: ${result.message}`);
+            alert('导出失败');
         }
     } catch (error) {
         console.error('导出失败:', error);

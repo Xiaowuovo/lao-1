@@ -708,6 +708,241 @@ def delete_reminder():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+# ==================== 课表管理接口 ====================
+
+@app.route('/api/getSchedule', methods=['GET'])
+@login_required
+def get_schedule():
+    """获取用户课表"""
+    try:
+        user_id = request.current_user['user_id']
+        day_of_week = request.args.get('day_of_week')  # 1-7 对应周一到周日
+        
+        courses = schedule_manager.get_schedule(user_id, day_of_week)
+        
+        return jsonify({
+            'success': True,
+            'data': courses
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/addCourse', methods=['POST'])
+@login_required
+def add_course():
+    """添加课程"""
+    try:
+        user_id = request.current_user['user_id']
+        data = request.json
+        
+        result = schedule_manager.add_course(
+            user_id=user_id,
+            course_name=data.get('course_name'),
+            day_of_week=data.get('day_of_week'),
+            start_time=data.get('start_time'),
+            end_time=data.get('end_time'),
+            location=data.get('location'),
+            teacher=data.get('teacher', '')
+        )
+        
+        if result['success']:
+            return jsonify(result), 201
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/deleteCourse', methods=['POST'])
+@login_required
+def delete_course():
+    """删除课程"""
+    try:
+        user_id = request.current_user['user_id']
+        schedule_id = request.json.get('schedule_id')
+        
+        result = schedule_manager.delete_course(user_id, schedule_id)
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/importSchedule', methods=['POST'])
+@login_required
+def import_schedule():
+    """批量导入课表"""
+    try:
+        user_id = request.current_user['user_id']
+        courses = request.json.get('courses', [])
+        
+        result = schedule_manager.import_schedule(user_id, courses)
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== 历史归档接口 ====================
+
+@app.route('/api/getArchive', methods=['GET'])
+@login_required
+def get_archive():
+    """获取历史归档"""
+    try:
+        user_id = request.current_user['user_id']
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 20))
+        event_type = request.args.get('event_type')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 构建查询条件
+        conditions = ["user_id = %s", "status = 'completed'"]
+        params = [user_id]
+        
+        if event_type:
+            conditions.append("event_type = %s")
+            params.append(event_type)
+        
+        if start_date:
+            conditions.append("event_time >= %s")
+            params.append(start_date)
+        
+        if end_date:
+            conditions.append("event_time <= %s")
+            params.append(end_date)
+        
+        where_clause = " AND ".join(conditions)
+        
+        # 查询总数
+        cursor.execute(f"SELECT COUNT(*) as total FROM text_events WHERE {where_clause}", params)
+        total = cursor.fetchone()['total']
+        
+        # 分页查询
+        offset = (page - 1) * page_size
+        params.extend([page_size, offset])
+        
+        cursor.execute(f"""
+            SELECT event_id, event_title, event_time, event_location, event_target, 
+                   event_type, confidence, created_at
+            FROM text_events 
+            WHERE {where_clause}
+            ORDER BY event_time DESC
+            LIMIT %s OFFSET %s
+        """, params)
+        
+        events = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'events': events,
+                'total': total,
+                'page': page,
+                'page_size': page_size
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/searchArchive', methods=['GET'])
+@login_required
+def search_archive():
+    """搜索历史归档"""
+    try:
+        user_id = request.current_user['user_id']
+        keyword = request.args.get('keyword', '')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT event_id, event_title, event_time, event_location, event_target, 
+                   event_type, confidence, created_at
+            FROM text_events 
+            WHERE user_id = %s 
+            AND (event_title LIKE %s OR event_location LIKE %s OR event_target LIKE %s)
+            ORDER BY event_time DESC
+            LIMIT 100
+        """, (user_id, f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'))
+        
+        events = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': events
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/exportArchive', methods=['GET'])
+@login_required
+def export_archive():
+    """导出历史归档为CSV"""
+    try:
+        user_id = request.current_user['user_id']
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT event_title, event_time, event_location, event_target, 
+                   event_type, status, created_at
+            FROM text_events 
+            WHERE user_id = %s
+            ORDER BY event_time DESC
+        """, (user_id,))
+        
+        events = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        # 生成CSV内容
+        import io
+        import csv
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # 写入表头
+        writer.writerow(['事件标题', '事件时间', '地点', '参与对象', '类型', '状态', '创建时间'])
+        
+        # 写入数据
+        for event in events:
+            writer.writerow([
+                event['event_title'],
+                str(event['event_time']),
+                event['event_location'],
+                event['event_target'],
+                event['event_type'],
+                event['status'],
+                str(event['created_at'])
+            ])
+        
+        output.seek(0)
+        
+        return output.getvalue(), 200, {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': 'attachment; filename=archive.csv'
+        }
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ==================== 健康检查 ====================
 
 @app.route('/api/health', methods=['GET'])
