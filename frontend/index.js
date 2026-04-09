@@ -1,5 +1,13 @@
 const API_BASE_URL = 'http://localhost:5000/api';
-const USER_ID = 1;
+
+// 获取认证token
+function getAuthHeaders() {
+    const token = localStorage.getItem('sessionToken');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
 
 function handleFileSelect(event) {
     const file = event.target.files[0];
@@ -27,19 +35,21 @@ async function extractEvents() {
     try {
         const response = await fetch(`${API_BASE_URL}/extractEvents`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
-                text: inputText,
-                user_id: USER_ID
+                text: inputText
             })
         });
 
         const result = await response.json();
 
+        if (result.require_login) {
+            window.location.href = 'login.html';
+            return;
+        }
+
         if (result.success) {
-            displayEvents(result.events);
+            displayEvents(result.events || []);
             document.getElementById('addAllBtn').style.display = 'block';
         } else {
             eventsContainer.innerHTML = `<div class="empty-state"><p>${result.message}</p></div>`;
@@ -99,14 +109,11 @@ async function addReminder(eventId) {
     button.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/createReminder`, {
+        const response = await fetch(`${API_BASE_URL}/createReminderEnhanced`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 event_id: eventId,
-                user_id: USER_ID,
                 advance_minutes: 30
             })
         });

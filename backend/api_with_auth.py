@@ -540,6 +540,170 @@ def upload_file():
         return jsonify({'success': False, 'message': f'上传失败: {str(e)}'}), 500
 
 
+# ==================== 兼容旧API路由 ====================
+
+@app.route('/api/extractEvents', methods=['POST', 'OPTIONS'])
+@login_required
+def extract_events():
+    """事件提取（兼容旧路由）"""
+    return extract_events_enhanced()
+
+
+@app.route('/api/getSettings', methods=['GET'])
+@login_required
+def get_settings():
+    """获取用户设置"""
+    try:
+        user_id = request.current_user['user_id']
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT reminder_advance_time, email_notification, web_notification, sound_notification
+            FROM user_settings WHERE user_id = %s
+        """, (user_id,))
+        settings = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if settings:
+            return jsonify({'success': True, 'data': settings})
+        else:
+            return jsonify({'success': True, 'data': {
+                'reminder_advance_time': 30,
+                'email_notification': False,
+                'web_notification': True,
+                'sound_notification': True
+            }})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/saveSettings', methods=['POST'])
+@login_required
+def save_settings():
+    """保存用户设置"""
+    try:
+        user_id = request.current_user['user_id']
+        data = request.json
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_settings (user_id, reminder_advance_time, email_notification, web_notification, sound_notification)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+            reminder_advance_time = VALUES(reminder_advance_time),
+            email_notification = VALUES(email_notification),
+            web_notification = VALUES(web_notification),
+            sound_notification = VALUES(sound_notification)
+        """, (user_id, data.get('reminder_advance_time', 30), 
+              data.get('email_notification', False),
+              data.get('web_notification', True),
+              data.get('sound_notification', True)))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': '设置已保存'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/getStatistics', methods=['GET'])
+@login_required
+def get_statistics():
+    """获取用户统计数据"""
+    try:
+        user_id = request.current_user['user_id']
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 统计事件数量
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_events,
+                SUM(CASE WHEN event_time >= NOW() THEN 1 ELSE 0 END) as upcoming_events,
+                SUM(CASE WHEN event_time < NOW() THEN 1 ELSE 0 END) as past_events
+            FROM text_events WHERE user_id = %s
+        """, (user_id,))
+        event_stats = cursor.fetchone()
+        
+        # 统计提醒数量
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_reminders,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_reminders,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_reminders
+            FROM reminder_tasks WHERE user_id = %s
+        """, (user_id,))
+        reminder_stats = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_events': event_stats['total_events'] or 0,
+                'upcoming_events': event_stats['upcoming_events'] or 0,
+                'past_events': event_stats['past_events'] or 0,
+                'total_reminders': reminder_stats['total_reminders'] or 0,
+                'pending_reminders': reminder_stats['pending_reminders'] or 0,
+                'completed_reminders': reminder_stats['completed_reminders'] or 0
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/updateReminderStatus', methods=['POST'])
+@login_required
+def update_reminder_status():
+    """更新提醒状态"""
+    try:
+        user_id = request.current_user['user_id']
+        data = request.json
+        task_id = data.get('task_id')
+        status = data.get('status')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE reminder_tasks SET status = %s 
+            WHERE task_id = %s AND user_id = %s
+        """, (status, task_id, user_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': '状态已更新'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/deleteReminder', methods=['POST'])
+@login_required
+def delete_reminder():
+    """删除提醒"""
+    try:
+        user_id = request.current_user['user_id']
+        data = request.json
+        task_id = data.get('task_id')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM reminder_tasks WHERE task_id = %s AND user_id = %s
+        """, (task_id, user_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': '提醒已删除'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ==================== 健康检查 ====================
 
 @app.route('/api/health', methods=['GET'])

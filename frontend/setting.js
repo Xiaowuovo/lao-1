@@ -1,22 +1,32 @@
 const API_BASE_URL = 'http://localhost:5000/api';
-const USER_ID = 1;
+
+// 获取认证token
+function getAuthHeaders() {
+    const token = localStorage.getItem('sessionToken');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
 
 async function loadSettings() {
     try {
-        const response = await fetch(`${API_BASE_URL}/getSettings?user_id=${USER_ID}`);
+        const response = await fetch(`${API_BASE_URL}/getSettings`, {
+            headers: getAuthHeaders()
+        });
         const result = await response.json();
 
-        if (result.success) {
-            const settings = result.settings;
+        if (result.require_login) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        if (result.success && result.data) {
+            const settings = result.data;
             
-            document.getElementById('advanceTime').value = settings.default_advance_minutes;
+            document.getElementById('advanceTime').value = settings.reminder_advance_time || 30;
             document.getElementById('webNotify').checked = settings.web_notification;
             document.getElementById('emailNotify').checked = settings.email_notification;
-            document.getElementById('smsNotify').checked = settings.sms_notification;
-            document.getElementById('emailAddress').value = settings.email_address || '';
-            document.getElementById('repeatDaily').checked = settings.repeat_daily;
-            document.getElementById('repeatWeekly').checked = settings.repeat_weekly;
-            document.getElementById('repeatMonthly').checked = settings.repeat_monthly;
 
             toggleEmailGroup();
         }
@@ -38,29 +48,16 @@ function toggleEmailGroup() {
 
 async function saveSettings() {
     const settings = {
-        user_id: USER_ID,
-        default_advance_minutes: parseInt(document.getElementById('advanceTime').value),
+        reminder_advance_time: parseInt(document.getElementById('advanceTime').value),
         web_notification: document.getElementById('webNotify').checked,
         email_notification: document.getElementById('emailNotify').checked,
-        sms_notification: document.getElementById('smsNotify').checked,
-        email_address: document.getElementById('emailAddress').value,
-        phone_number: '',
-        repeat_daily: document.getElementById('repeatDaily').checked,
-        repeat_weekly: document.getElementById('repeatWeekly').checked,
-        repeat_monthly: document.getElementById('repeatMonthly').checked
+        sound_notification: true
     };
 
-    if (settings.email_notification && !settings.email_address) {
-        alert('请输入邮件地址');
-        return;
-    }
-
     try {
-        const response = await fetch(`${API_BASE_URL}/updateSettings`, {
+        const response = await fetch(`${API_BASE_URL}/saveSettings`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(settings)
         });
 
@@ -79,18 +76,18 @@ async function saveSettings() {
 
 async function loadStatistics() {
     try {
-        const response = await fetch(`${API_BASE_URL}/getStatistics?user_id=${USER_ID}`);
+        const response = await fetch(`${API_BASE_URL}/getStatistics`, {
+            headers: getAuthHeaders()
+        });
         const result = await response.json();
 
-        if (result.success) {
-            const stats = result.statistics;
+        if (result.success && result.data) {
+            const stats = result.data;
             
-            document.getElementById('completionRate').textContent = stats.completion_rate + '%';
-            document.getElementById('processedCount').textContent = stats.completed;
-            document.getElementById('unprocessedCount').textContent = stats.pending;
-
-            renderTrendChart(stats.trend_data);
-            renderTypeDistribution(stats.type_distribution);
+            const rate = stats.total_reminders > 0 ? Math.round(stats.completed_reminders * 100 / stats.total_reminders) : 0;
+            document.getElementById('completionRate').textContent = rate + '%';
+            document.getElementById('processedCount').textContent = stats.completed_reminders || 0;
+            document.getElementById('unprocessedCount').textContent = stats.pending_reminders || 0;
         }
     } catch (error) {
         console.error('加载统计失败:', error);

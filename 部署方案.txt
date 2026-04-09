@@ -9,6 +9,27 @@
 
 
 ================================================
+【重要】每日启动方法（你已部署成功）
+================================================
+
+以后每次使用系统，只需要：
+
+1. 打开CMD，输入：
+   cd /d E:\Desktop\all\客户tmp\laojiayi\backend
+   venv\Scripts\activate
+   python api_with_auth.py
+
+2. 再开一个CMD窗口，输入：
+   cd /d E:\Desktop\all\客户tmp\laojiayi
+   python -m http.server 8080
+
+3. 浏览器访问：
+   http://localhost:8080/frontend/login.html
+
+4. 关闭系统：在两个CMD窗口按 Ctrl+C
+
+
+================================================
 第一步：配置数据库密码
 ================================================
 

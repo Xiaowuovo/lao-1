@@ -1,5 +1,4 @@
 const API_BASE_URL = 'http://localhost:5000/api';
-const USER_ID = 1;
 
 let remindersData = [];
 let currentStatusFilter = 'all';
@@ -12,13 +11,29 @@ const statusMap = {
     "postponed": { text: "已延期", class: "status-postponed" }
 };
 
+// 获取认证token
+function getAuthHeaders() {
+    const token = localStorage.getItem('sessionToken');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
+
 async function loadReminders() {
     try {
-        const response = await fetch(`${API_BASE_URL}/getReminders?user_id=${USER_ID}&status=${currentStatusFilter}&time_range=${currentTimeFilter}`);
+        const response = await fetch(`${API_BASE_URL}/getReminders?status=${currentStatusFilter}&time_range=${currentTimeFilter}`, {
+            headers: getAuthHeaders()
+        });
         const result = await response.json();
 
+        if (result.require_login) {
+            window.location.href = 'login.html';
+            return;
+        }
+
         if (result.success) {
-            remindersData = result.reminders;
+            remindersData = result.reminders || [];
             displayReminders(remindersData);
             updateStatistics();
         } else {
@@ -93,12 +108,10 @@ function filterByTime(timeRange) {
 
 async function markComplete(id) {
     try {
-        const response = await fetch(`${API_BASE_URL}/markDone`, {
+        const response = await fetch(`${API_BASE_URL}/updateReminderStatus`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ reminder_id: id })
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ task_id: id, status: 'completed' })
         });
 
         const result = await response.json();
@@ -129,14 +142,12 @@ async function postponeReminder(id) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/postponeReminder`, {
+        const response = await fetch(`${API_BASE_URL}/updateReminderStatus`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
-                reminder_id: id,
-                new_time: newDate
+                task_id: id,
+                status: 'postponed'
             })
         });
 
@@ -162,10 +173,8 @@ async function deleteReminder(id) {
     try {
         const response = await fetch(`${API_BASE_URL}/deleteReminder`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ reminder_id: id })
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ task_id: id })
         });
 
         const result = await response.json();
@@ -184,15 +193,18 @@ async function deleteReminder(id) {
 
 async function updateStatistics() {
     try {
-        const response = await fetch(`${API_BASE_URL}/getStatistics?user_id=${USER_ID}`);
+        const response = await fetch(`${API_BASE_URL}/getStatistics`, {
+            headers: getAuthHeaders()
+        });
         const result = await response.json();
 
-        if (result.success) {
-            const stats = result.statistics;
-            document.getElementById('totalReminders').textContent = stats.total;
-            document.getElementById('completedReminders').textContent = stats.completed;
-            document.getElementById('pendingReminders').textContent = stats.pending;
-            document.getElementById('completionRate').textContent = stats.completion_rate + '%';
+        if (result.success && result.data) {
+            const stats = result.data;
+            document.getElementById('totalReminders').textContent = stats.total_reminders || 0;
+            document.getElementById('completedReminders').textContent = stats.completed_reminders || 0;
+            document.getElementById('pendingReminders').textContent = stats.pending_reminders || 0;
+            const rate = stats.total_reminders > 0 ? Math.round(stats.completed_reminders * 100 / stats.total_reminders) : 0;
+            document.getElementById('completionRate').textContent = rate + '%';
         }
     } catch (error) {
         console.error('更新统计失败:', error);
