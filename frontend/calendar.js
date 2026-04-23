@@ -298,8 +298,8 @@ function showDayEvents(day, events) {
                         ${index + 1}. ${event.event_title} ${conflictBadge}
                     </div>
                     <div style="color:#7f8c8d; font-size:13px; display:flex; gap:15px; flex-wrap:wrap;">
-                        <span>� ${timeStr}</span>
-                        <span>�📍 ${event.standard_location || event.event_location || '待定'}</span>
+                        <span>🕐 ${timeStr}</span>
+                        <span>📍 ${event.standard_location || event.event_location || '待定'}</span>
                         <span>📋 ${event.activity_type || '通知'}</span>
                     </div>
                 </div>

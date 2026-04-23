@@ -790,7 +790,29 @@ def get_events_by_month():
             if event.get('event_time'):
                 t = event['event_time']
                 event['event_time'] = t.strftime('%Y-%m-%d %H:%M:%S') if hasattr(t, 'strftime') else str(t)
-        
+            event['has_conflict'] = False  # 默认重置，后续实时计算
+
+        # 实时计算事件间冲突（同一天内时间差 < 120 分钟视为冲突）
+        from datetime import datetime as _dt
+        event_times = []
+        for ev in events:
+            try:
+                et = _dt.strptime(ev['event_time'], '%Y-%m-%d %H:%M:%S') if ev.get('event_time') else None
+            except Exception:
+                et = None
+            event_times.append(et)
+
+        for i in range(len(events)):
+            if event_times[i] is None:
+                continue
+            for j in range(len(events)):
+                if i == j or event_times[j] is None:
+                    continue
+                diff = abs((event_times[i] - event_times[j]).total_seconds() / 60)
+                if diff < 120:
+                    events[i]['has_conflict'] = True
+                    break
+
         return jsonify({
             'success': True,
             'events': events,
