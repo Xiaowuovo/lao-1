@@ -1,13 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api';
-
-// 获取认证token
-function getAuthHeaders() {
-    const token = localStorage.getItem('sessionToken');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-    };
-}
+// API_BASE_URL 和 getAuthHeaders 已在 auth-check.js 中声明
 
 let schedules = [];
 
@@ -188,28 +179,19 @@ async function deleteCourse(scheduleId) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    // 检查登录状态
-    if (typeof checkAuth !== 'undefined' && !checkAuth()) {
-        return;
-    }
-    
     // 更新用户信息显示
-    if (typeof getCurrentUser !== 'undefined') {
-        const userInfo = getCurrentUser();
-        if (userInfo) {
-            document.getElementById('userName').textContent = userInfo.real_name || userInfo.username;
-            
-            // 添加点击退出功能
-            const userMenu = document.querySelector('.user-menu');
-            userMenu.style.cursor = 'pointer';
-            userMenu.onclick = function() {
-                if (confirm('确定要退出登录吗？')) {
-                    if (typeof logout !== 'undefined') {
-                        logout();
-                    }
-                }
-            };
-        }
+    const userInfo = getCurrentUser();
+    if (userInfo) {
+        document.getElementById('userName').textContent = userInfo.real_name || userInfo.username;
+        
+        // 添加点击退出功能
+        const userMenu = document.querySelector('.user-menu');
+        userMenu.style.cursor = 'pointer';
+        userMenu.onclick = function() {
+            if (confirm('确定要退出登录吗？')) {
+                logout();
+            }
+        };
     }
     
     loadSchedule();

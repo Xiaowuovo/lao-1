@@ -5,9 +5,31 @@
 from flask import request, jsonify
 from functools import wraps
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from xtu_event_extractor import get_extractor as get_xtu_extractor
 from xtu_location_mapper import get_location_mapper
+
+
+def _parse_event_time(time_str):
+    """解析事件时间字符串为datetime对象，支持多种格式"""
+    if not time_str:
+        return None
+    formats = [
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%Y-%m-%d',
+        '%Y/%m/%d %H:%M:%S',
+        '%Y/%m/%d %H:%M',
+        '%Y/%m/%d',
+        '%Y年%m月%d日 %H:%M',
+        '%Y年%m月%d日',
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(str(time_str).strip(), fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
@@ -196,18 +218,16 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                     event_time_str = event_data.get('time')
                     if event_time_str:
                         try:
-                            from dateutil import parser as date_parser
-                            event_time = date_parser.parse(event_time_str)
-                            reminder_time = event_time - timedelta(minutes=30)
-                            
-                            cursor.execute("""
-                                INSERT INTO reminder_tasks 
-                                (event_id, user_id, reminder_time, advance_minutes, reminder_method, status)
-                                VALUES (%s, %s, %s, %s, %s, %s)
-                            """, (event_id, user_id, reminder_time, 30, 'web', 'pending'))
-                            print(f"✓ 为重复事件创建提醒任务: event_id={event_id}, reminder_time={reminder_time}")
-                        except Exception as e:
-                            print(f"✗ 为重复事件创建提醒任务失败: {e}")
+                            event_time = _parse_event_time(event_time_str)
+                            if event_time:
+                                reminder_time = event_time - timedelta(minutes=30)
+                                cursor.execute("""
+                                    INSERT INTO reminder_tasks 
+                                    (event_id, user_id, reminder_time, advance_minutes, reminder_method)
+                                    VALUES (%s, %s, %s, %s, %s)
+                                """, (event_id, user_id, reminder_time, 30, 'web'))
+                        except:
+                            pass
                 
                 conn.commit()
                 cursor.close()
@@ -253,19 +273,16 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                 event_time_str = event_data.get('time')
                 if event_time_str:
                     try:
-                        from dateutil import parser as date_parser
-                        event_time = date_parser.parse(event_time_str)
-                        reminder_time = event_time - timedelta(minutes=30)
-                        
-                        cursor.execute("""
-                            INSERT INTO reminder_tasks 
-                            (event_id, user_id, reminder_time, advance_minutes, reminder_method, status)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (event_id, user_id, reminder_time, 30, 'web', 'pending'))
-                        print(f"✓ 自动创建提醒任务成功: event_id={event_id}, reminder_time={reminder_time}")
-                    except Exception as e:
-                        print(f"✗ 自动创建提醒任务失败: {e}")
-                        # 不影响事件保存，继续执行
+                        event_time = _parse_event_time(event_time_str)
+                        if event_time:
+                            reminder_time = event_time - timedelta(minutes=30)
+                            cursor.execute("""
+                                INSERT INTO reminder_tasks 
+                                (event_id, user_id, reminder_time, advance_minutes, reminder_method)
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (event_id, user_id, reminder_time, 30, 'web'))
+                    except:
+                        pass  # 如果时间解析失败，跳过创建提醒
                 
                 conn.commit()
                 cursor.close()

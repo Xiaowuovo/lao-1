@@ -164,12 +164,28 @@ async function extractEvents() {
     }
 }
 
-// 批量提取事件
-async function extractBatchEvents() {
-    console.log('批量提取函数被调用');
+// 将文本分段
+function splitTextIntoSegments(text) {
+    // 先尝试双换行分段
+    let segments = text.split(/\n\n+/).map(s => s.trim()).filter(s => s.length >= 15);
+    if (segments.length > 1) return segments;
     
+    // 尝试数字/中文序号分段
+    const numberedSplit = text.split(/(?=(?:\d+[、\.\)）]|[一二三四五六七八九十]+[、\.]))/);
+    segments = numberedSplit.map(s => s.trim()).filter(s => s.length >= 15);
+    if (segments.length > 1) return segments;
+    
+    // 尝试单换行分段（每行作为一个候选）
+    const lineSplit = text.split(/\n/).map(s => s.trim()).filter(s => s.length >= 15);
+    if (lineSplit.length > 1) return lineSplit;
+    
+    // 无法分段，整体作为一段
+    return [text.trim()];
+}
+
+// 批量提取事件 - 前端分段后逐段调用智能提取
+async function extractBatchEvents() {
     const inputText = document.getElementById('inputText').value;
-    console.log('输入文本长度:', inputText.length);
     
     if (!inputText.trim()) {
         alert("请输入或上传文本内容");
@@ -177,31 +193,47 @@ async function extractBatchEvents() {
     }
 
     const container = document.getElementById('eventsContainer');
-    container.innerHTML = '<div class="empty-state"><p>正在批量提取事件...</p></div>';
-    console.log('开始调用API...');
+    const segments = splitTextIntoSegments(inputText);
+    
+    if (segments.length <= 1) {
+        // 只有一段，直接走单事件提取
+        extractEvents();
+        return;
+    }
+    
+    container.innerHTML = `<div class="empty-state"><p>正在批量提取 ${segments.length} 个片段...</p></div>`;
 
     try {
-        console.log('API URL:', `${API_BASE_URL}/xtu/extractBatch`);
-        const response = await fetch(`${API_BASE_URL}/xtu/extractBatch`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({ text: inputText })
-        });
-
-        console.log('响应状态:', response.status);
-        const result = await response.json();
-        console.log('批量提取结果:', result);
-
-        if (result.require_login) {
-            alert('会话已过期，请重新登录');
-            window.location.href = 'login.html';
-            return;
+        const eventCards = [];
+        
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i];
+            container.innerHTML = `<div class="empty-state"><p>正在提取第 ${i + 1}/${segments.length} 个片段...</p></div>`;
+            
+            const response = await fetch(`${API_BASE_URL}/xtu/extractEvents`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ text: seg })
+            });
+            
+            const result = await response.json();
+            
+            if (result.require_login) {
+                alert('会话已过期，请重新登录');
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            if (result.success && result.event_card) {
+                result.event_card.original_text = seg;
+                eventCards.push(result.event_card);
+            }
         }
-
-        if (result.success && result.event_cards && result.event_cards.length > 0) {
-            displayBatchCards(result.event_cards);
+        
+        if (eventCards.length > 0) {
+            displayBatchCards(eventCards);
         } else {
-            container.innerHTML = `<div class="empty-state"><p>${result.message || '未提取到事件'}</p></div>`;
+            container.innerHTML = `<div class="empty-state"><p>未能从文本中提取到事件，请尝试智能提取</p></div>`;
         }
     } catch (error) {
         console.error('批量提取失败:', error);
