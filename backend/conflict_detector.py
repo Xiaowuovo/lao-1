@@ -279,11 +279,7 @@ class ScheduleManager:
             cursor = conn.cursor()
 
             # 确保 weeks/exam_type 字段存在（兼容旧表结构）
-            try:
-                cursor.execute("ALTER TABLE user_schedules ADD COLUMN IF NOT EXISTS weeks VARCHAR(50) DEFAULT ''")
-                cursor.execute("ALTER TABLE user_schedules ADD COLUMN IF NOT EXISTS exam_type VARCHAR(20) DEFAULT ''")
-            except:
-                pass
+            self._ensure_extra_columns(cursor)
             
             cursor.execute("""
                 INSERT INTO user_schedules 
@@ -311,12 +307,26 @@ class ScheduleManager:
             print(f"添加课程失败: {e}")
             return {'success': False, 'message': f'添加课程失败: {str(e)}'}
     
+    def _ensure_extra_columns(self, cursor):
+        """确保 weeks/exam_type 字段存在"""
+        try:
+            cursor.execute("SHOW COLUMNS FROM user_schedules LIKE 'weeks'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE user_schedules ADD COLUMN weeks VARCHAR(50) DEFAULT ''")
+            cursor.execute("SHOW COLUMNS FROM user_schedules LIKE 'exam_type'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE user_schedules ADD COLUMN exam_type VARCHAR(20) DEFAULT ''")
+        except:
+            pass
+
     def get_schedule(self, user_id: int, day_of_week=None) -> List[Dict]:
         """获取用户课表"""
         try:
             conn = pymysql.connect(**self.db_config)
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            
+
+            self._ensure_extra_columns(cursor)
+
             if day_of_week:
                 cursor.execute("""
                     SELECT schedule_id, course_name, weekday AS day_of_week,
