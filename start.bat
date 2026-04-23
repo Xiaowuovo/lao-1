@@ -1,39 +1,28 @@
 @echo off
-chcp 936 >nul
-title Campus Reminder System
+echo Starting Campus Reminder System...
 
-echo ========================================
-echo   Starting Campus Reminder System...
-echo ========================================
-echo.
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5000" ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8080" ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
 
-echo [1] Starting backend server (port 5000)...
 cd /d "%~dp0backend"
-start "Backend-5000" cmd /k "venv\Scripts\activate.bat && python api_with_auth.py"
+start "Backend" cmd /c python api_with_auth.py
+
+cd /d "%~dp0backend"
+start "Reminder Scheduler" cmd /c python reminder_scheduler.py
+
+cd /d "%~dp0"
+start "Frontend" cmd /c python -m http.server 8080
 
 timeout /t 3 /nobreak >nul
 
-echo [2] Starting frontend server (port 8080)...
-cd /d "%~dp0"
-start "Frontend-8080" cmd /k "python -m http.server 8080"
-
-timeout /t 2 /nobreak >nul
-
-echo [3] Opening browser...
 start http://localhost:8080/frontend/login.html
 
 echo.
-echo ========================================
-echo   System Started!
-echo ========================================
+echo System started successfully!
+echo Backend:           http://localhost:5000
+echo Frontend:          http://localhost:8080
+echo Reminder Scheduler: Running (checks every minute)
 echo.
-echo Frontend: http://localhost:8080/frontend/login.html
-echo Backend:  http://localhost:5000
-echo.
-echo Test account:
-echo   Student ID: 202205570603
-echo   Password: xtu123456
-echo.
-echo To stop: close the Backend and Frontend windows
+echo Note: Keep all windows open for the system to work properly
 echo.
 pause

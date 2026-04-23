@@ -139,12 +139,11 @@ class ConflictDetector:
                     course_name,
                     start_time,
                     end_time,
-                    location,
-                    teacher
+                    course_location AS location,
+                    teacher_name AS teacher
                 FROM user_schedules
                 WHERE user_id = %s
-                AND day_of_week = %s
-                AND is_active = TRUE
+                AND weekday = %s
                 AND (
                     (start_time BETWEEN %s AND %s)
                     OR (end_time BETWEEN %s AND %s)
@@ -270,7 +269,9 @@ class ScheduleManager:
     def __init__(self, db_config: dict):
         self.db_config = db_config
     
-    def add_course(self, user_id: int, course_data: Dict) -> bool:
+    def add_course(self, user_id: int, course_name: str = None, day_of_week: int = None,
+                   start_time: str = None, end_time: str = None,
+                   location: str = '', teacher: str = '', **kwargs) -> Dict:
         """添加课程到课表"""
         try:
             conn = pymysql.connect(**self.db_config)
@@ -278,41 +279,58 @@ class ScheduleManager:
             
             cursor.execute("""
                 INSERT INTO user_schedules 
-                (user_id, course_name, day_of_week, start_time, end_time, 
-                 location, teacher, weeks)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                (user_id, course_name, weekday, start_time, end_time, 
+                 course_location, teacher_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
                 user_id,
-                course_data['course_name'],
-                course_data['day_of_week'],
-                course_data['start_time'],
-                course_data['end_time'],
-                course_data.get('location', ''),
-                course_data.get('teacher', ''),
-                course_data.get('weeks', '1-18')
+                course_name,
+                day_of_week,
+                start_time,
+                end_time,
+                location,
+                teacher
             ))
             
+            schedule_id = cursor.lastrowid
             conn.commit()
             cursor.close()
             conn.close()
-            return True
+            return {'success': True, 'message': '课程添加成功', 'schedule_id': schedule_id}
         except Exception as e:
             print(f"添加课程失败: {e}")
-            return False
+            return {'success': False, 'message': f'添加课程失败: {str(e)}'}
     
-    def get_user_schedule(self, user_id: int) -> List[Dict]:
+    def get_schedule(self, user_id: int, day_of_week=None) -> List[Dict]:
         """获取用户课表"""
         try:
             conn = pymysql.connect(**self.db_config)
             cursor = conn.cursor(pymysql.cursors.DictCursor)
             
-            cursor.execute("""
-                SELECT * FROM user_schedules
-                WHERE user_id = %s AND is_active = TRUE
-                ORDER BY day_of_week, start_time
-            """, (user_id,))
+            if day_of_week:
+                cursor.execute("""
+                    SELECT schedule_id, course_name, weekday AS day_of_week,
+                           start_time, end_time, course_location AS location, teacher_name AS teacher
+                    FROM user_schedules
+                    WHERE user_id = %s AND weekday = %s
+                    ORDER BY start_time
+                """, (user_id, day_of_week))
+            else:
+                cursor.execute("""
+                    SELECT schedule_id, course_name, weekday AS day_of_week,
+                           start_time, end_time, course_location AS location, teacher_name AS teacher
+                    FROM user_schedules
+                    WHERE user_id = %s
+                    ORDER BY weekday, start_time
+                """, (user_id,))
             
             schedules = cursor.fetchall()
+            
+            for s in schedules:
+                if s['start_time'] is not None:
+                    s['start_time'] = str(s['start_time'])
+                if s['end_time'] is not None:
+                    s['end_time'] = str(s['end_time'])
             
             cursor.close()
             conn.close()
@@ -322,27 +340,26 @@ class ScheduleManager:
             print(f"获取课表失败: {e}")
             return []
     
-    def delete_course(self, schedule_id: int) -> bool:
+    def delete_course(self, user_id: int, schedule_id: int) -> Dict:
         """删除课程"""
         try:
             conn = pymysql.connect(**self.db_config)
             cursor = conn.cursor()
             
             cursor.execute("""
-                UPDATE user_schedules 
-                SET is_active = FALSE
-                WHERE schedule_id = %s
-            """, (schedule_id,))
+                DELETE FROM user_schedules 
+                WHERE schedule_id = %s AND user_id = %s
+            """, (schedule_id, user_id))
             
             conn.commit()
             cursor.close()
             conn.close()
-            return True
+            return {'success': True, 'message': '课程已删除'}
         except Exception as e:
             print(f"删除课程失败: {e}")
-            return False
+            return {'success': False, 'message': f'删除课程失败: {str(e)}'}
     
-    def batch_import_schedule(self, user_id: int, schedule_data: List[Dict]) -> Dict:
+    def import_schedule(self, user_id: int, schedule_data: List[Dict]) -> Dict:
         """批量导入课表"""
         success_count = 0
         failed_count = 0
@@ -350,7 +367,16 @@ class ScheduleManager:
         
         for course in schedule_data:
             try:
-                if self.add_course(user_id, course):
+                result = self.add_course(
+                    user_id,
+                    course_name=course.get('course_name'),
+                    day_of_week=course.get('day_of_week'),
+                    start_time=course.get('start_time'),
+                    end_time=course.get('end_time'),
+                    location=course.get('location', ''),
+                    teacher=course.get('teacher', '')
+                )
+                if result['success']:
                     success_count += 1
                 else:
                     failed_count += 1
@@ -360,6 +386,7 @@ class ScheduleManager:
                 errors.append(f"导入课程失败: {str(e)}")
         
         return {
+            'success': True,
             'success_count': success_count,
             'failed_count': failed_count,
             'total': len(schedule_data),

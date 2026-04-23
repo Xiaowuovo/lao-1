@@ -152,5 +152,20 @@ async function exportArchive() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    // 更新用户信息显示
+    const userInfo = getCurrentUser();
+    if (userInfo) {
+        document.getElementById('userName').textContent = userInfo.real_name || userInfo.username;
+        
+        // 添加点击退出功能
+        const userMenu = document.querySelector('.user-menu');
+        userMenu.style.cursor = 'pointer';
+        userMenu.onclick = function() {
+            if (confirm('确定要退出登录吗？')) {
+                logout();
+            }
+        };
+    }
+    
     loadArchive();
 });

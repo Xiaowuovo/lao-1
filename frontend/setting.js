@@ -1,13 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api';
-
-// 获取认证token
-function getAuthHeaders() {
-    const token = localStorage.getItem('sessionToken');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-    };
-}
+// API_BASE_URL 和 getAuthHeaders 已在 auth-check.js 中声明
 
 async function loadSettings() {
     try {
@@ -172,9 +163,10 @@ function exportStats() {
     alert('导出功能开发中，敬请期待！');
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    loadSettings();
-    loadStatistics();
-
-    document.getElementById('emailNotify').addEventListener('change', toggleEmailGroup);
-});
+// 邮件通知复选框事件监听（延迟绑定，等待DOM加载）
+setTimeout(function() {
+    const emailNotifyEl = document.getElementById('emailNotify');
+    if (emailNotifyEl) {
+        emailNotifyEl.addEventListener('change', toggleEmailGroup);
+    }
+}, 100);

@@ -22,6 +22,15 @@ function getSessionToken() {
     return localStorage.getItem('sessionToken');
 }
 
+// 获取认证请求头
+function getAuthHeaders() {
+    const token = getSessionToken();
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
+
 // 检查是否已登录
 function checkAuth() {
     const token = getSessionToken();

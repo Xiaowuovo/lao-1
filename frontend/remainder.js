@@ -1,8 +1,8 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+// API_BASE_URL 和 getAuthHeaders 已在 auth-check.js 中声明
 
 let remindersData = [];
 let currentStatusFilter = 'all';
-let currentTimeFilter = 'month';
+let currentTimeFilter = 'all';
 
 const statusMap = {
     "pending": { text: "未提醒", class: "status-pending" },
@@ -10,15 +10,6 @@ const statusMap = {
     "completed": { text: "已完成", class: "status-completed" },
     "postponed": { text: "已延期", class: "status-postponed" }
 };
-
-// 获取认证token
-function getAuthHeaders() {
-    const token = localStorage.getItem('sessionToken');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-    };
-}
 
 async function loadReminders() {
     try {
@@ -61,7 +52,7 @@ function displayReminders(reminders) {
         const advanceText = `${reminder.advance_minutes}分钟前提醒`;
 
         remindersHTML += `
-            <div class="reminder-card ${reminder.status}" id="reminder-${reminder.reminder_id}">
+            <div class="reminder-card ${reminder.status}" id="reminder-${reminder.task_id}">
                 <div class="reminder-header">
                     <div class="reminder-time">${reminder.event_time} (${advanceText})</div>
                     <div class="reminder-status ${status.class}">${status.text}</div>
@@ -73,9 +64,9 @@ function displayReminders(reminders) {
                     ${reminder.postponed_to ? `<div><strong>延期至:</strong> ${reminder.postponed_to}</div>` : ''}
                 </div>
                 <div class="action-buttons">
-                    ${reminder.status !== 'completed' ? `<button class="action-btn complete-btn" onclick="markComplete(${reminder.reminder_id})">标记完成</button>` : ''}
-                    ${reminder.status !== 'completed' ? `<button class="action-btn postpone-btn" onclick="postponeReminder(${reminder.reminder_id})">延后提醒</button>` : ''}
-                    <button class="action-btn delete-btn" onclick="deleteReminder(${reminder.reminder_id})">删除</button>
+                    ${reminder.status !== 'completed' ? `<button class="action-btn complete-btn" onclick="markComplete(${reminder.task_id})">标记完成</button>` : ''}
+                    ${reminder.status !== 'completed' ? `<button class="action-btn postpone-btn" onclick="postponeReminder(${reminder.task_id})">延后提醒</button>` : ''}
+                    <button class="action-btn delete-btn" onclick="deleteReminder(${reminder.task_id})">删除</button>
                 </div>
             </div>
         `;
@@ -211,7 +202,5 @@ async function updateStatistics() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    loadReminders();
-    setInterval(loadReminders, 60000);
-});
+// 自动刷新（每60秒）
+setInterval(loadReminders, 60000);

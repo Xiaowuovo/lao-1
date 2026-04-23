@@ -59,9 +59,9 @@ class AuthManager:
             conn.close()
             
             if not result:
-                return False, f"学院代码 {college_code} 不存在"
+                return True, f"警告：学院代码 {college_code} 未在系统中登记，但允许继续"
         except Exception as e:
-            return False, f"验证学院代码失败: {str(e)}"
+            return True, f"警告：无法验证学院代码: {str(e)}"
         
         return True, "验证通过"
     

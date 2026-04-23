@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>湘潭大学智慧校园任务管理系统 - 日历视图</title>
+    <link rel="stylesheet" href="./remainder.css">
+    <style>
+        .calendar-container {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin: 20px 0;
+            max-width: 1400px;
+        }
+        
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        .calendar-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .calendar-nav {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .calendar-nav button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .calendar-nav button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .calendar-nav button:active {
+            transform: translateY(0);
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            margin-top: 20px;
+        }
+        
+        .calendar-day-header {
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 14px;
+            border-radius: 8px;
+            letter-spacing: 1px;
+        }
+        
+        .calendar-day {
+            background: #fafafa;
+            min-height: 100px;
+            padding: 10px;
+            border-radius: 8px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .calendar-day:hover {
+            background: white;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .calendar-day.other-month {
+            background: #f8f9fa;
+            opacity: 0.5;
+        }
+        
+        .calendar-day.other-month .day-number {
+            color: #bdc3c7;
+        }
+        
+        .calendar-day.today {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-color: #2196f3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+        }
+        
+        .calendar-day.today .day-number {
+            color: #1976d2;
+            font-weight: 800;
+        }
+        
+        .day-number {
+            font-weight: 600;
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        
+        /* 事件标记点 */
+        .event-dots {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        
+        .event-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            animation: dotPulse 2s infinite;
+        }
+        
+        .event-dot.conflict {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            animation: conflictPulse 1s infinite;
+        }
+        
+        @keyframes dotPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.9); }
+        }
+        
+        @keyframes conflictPulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+            50% { opacity: 0.8; box-shadow: 0 0 0 4px rgba(231, 76, 60, 0); }
+        }
+        
+        /* Tooltip样式 */
+        .calendar-day-tooltip {
+            display: none;
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2c3e50;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            white-space: nowrap;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            max-width: 300px;
+            white-space: normal;
+        }
+        
+        .calendar-day-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #2c3e50;
+        }
+        
+        .calendar-day:hover .calendar-day-tooltip {
+            display: block;
+        }
+        
+        .tooltip-event {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .tooltip-event:last-child {
+            border-bottom: none;
+        }
+        
+        .tooltip-time {
+            color: #3498db;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        
+        /* 弹窗样式优化 */
+        .event-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .event-modal.show {
+            display: flex;
+        }
+        
+        .event-modal-content {
+            background: white;
+            padding: 35px;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .event-modal-header {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 25px;
+            color: #2c3e50;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        .event-detail-row {
+            margin: 18px 0;
+            display: flex;
+            gap: 15px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        
+        .event-detail-row:hover {
+            background: #e9ecef;
+        }
+        
+        .event-detail-label {
+            font-weight: 700;
+            color: #7f8c8d;
+            min-width: 90px;
+            font-size: 14px;
+        }
+        
+        .event-detail-value {
+            flex: 1;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        
+        .close-modal {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 25px;
+            font-size: 15px;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        
+        .close-modal:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(149, 165, 166, 0.4);
+        }
+        
+        .conflict-warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+        }
+        
+        .event-count {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(231, 76, 60, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">湘潭大学智慧校园任务管理系统</div>
+            <div class="user-menu">
+                <span id="userName">管理员</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="nav">
+            <ul>
+                <li><a href="index.html">首页</a></li>
+                <li><a href="remainder.html">提醒管理</a></li>
+                <li><a href="schedule.html">课表管理</a></li>
+                <li><a href="#" class="active">日历视图</a></li>
+                <li><a href="archive.html">历史归档</a></li>
+                <li><a href="setting.html">设置与统计</a></li>
+            </ul>
+        </div>
+
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <div class="calendar-title">
+                    <span id="calendarTitle">2026年4月</span>
+                </div>
+                <div class="calendar-nav">
+                    <button onclick="previousMonth()">◀ 上月</button>
+                    <button onclick="today()">今天</button>
+                    <button onclick="nextMonth()">下月 ▶</button>
+                </div>
+            </div>
+
+            <div class="calendar-grid" id="calendarGrid">
+                <!-- 星期头 -->
+                <div class="calendar-day-header">周日</div>
+                <div class="calendar-day-header">周一</div>
+                <div class="calendar-day-header">周二</div>
+                <div class="calendar-day-header">周三</div>
+                <div class="calendar-day-header">周四</div>
+                <div class="calendar-day-header">周五</div>
+                <div class="calendar-day-header">周六</div>
+                <!-- 日期格子将通过JS插入到这里 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 事件详情弹窗 -->
+    <div class="event-modal" id="eventModal">
+        <div class="event-modal-content">
+            <div class="event-modal-header" id="modalTitle">事件详情</div>
+            <div id="modalContent"></div>
+            <button class="close-modal" onclick="closeModal()">关闭</button>
+        </div>
+    </div>
+
+    <footer>
+        <p>湘潭大学智慧校园任务管理系统 v2.0 © Lao</p>
+    </footer>
+
+    <script src="auth-check.js"></script>
+    <script src="calendar.js"></script>
+</body>
+</html>

@@ -1,16 +1,29 @@
-Flask==2.3.2
-flask-cors==4.0.0
-pymysql==1.1.0
-jieba==0.42.1
-werkzeug==2.3.6
-cryptography==41.0.3
+# 基础依赖
+Flask==2.3.3
+Flask-CORS==4.0.0
+PyMySQL==1.1.0
 python-dotenv==1.0.0
+werkzeug==2.3.7
 
-# 新增依赖
-pytesseract==0.3.10
-Pillow==10.0.0
+# 文本处理
+jieba==0.42.1
+
+# PDF处理
 PyPDF2==3.0.1
+
+# Word处理
 python-docx==0.8.11
-beautifulsoup4==4.12.2
-requests==2.31.0
-lxml==4.9.3
+
+# 图片处理和OCR
+Pillow==10.0.0
+pytesseract==0.3.10
+
+# 注意：pytesseract需要先安装Tesseract-OCR
+# Windows下载地址: https://github.com/UB-Mannheim/tesseract/wiki
+# 安装后需要将Tesseract-OCR添加到系统PATH
+
+# Linux安装命令:
+# sudo apt-get install tesseract-ocr tesseract-ocr-chi-sim
+
+# macOS安装命令:
+# brew install tesseract tesseract-lang

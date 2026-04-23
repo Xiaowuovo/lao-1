@@ -5,8 +5,15 @@ from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from functools import wraps
 import os
+import sys
 import json
 from dotenv import load_dotenv
+
+# 设置输出编码为UTF-8（解决Windows控制台编码问题）
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # 加载环境变量
 load_dotenv()
@@ -16,6 +23,10 @@ from event_enhanced import EnhancedEventExtractor
 from location_matcher import LocationMatcher
 from conflict_detector import ConflictDetector, ScheduleManager
 from file_processor import FileProcessor, BatchTextSplitter
+from xtu_event_extractor import get_extractor as get_xtu_extractor
+from xtu_location_mapper import get_location_mapper
+from file_processor_enhanced import get_file_processor
+from email_sender import EmailSender
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -42,6 +53,7 @@ location_matcher = LocationMatcher(DB_CONFIG)
 conflict_detector = ConflictDetector(DB_CONFIG)
 schedule_manager = ScheduleManager(DB_CONFIG)
 file_processor = FileProcessor(DB_CONFIG, UPLOAD_FOLDER)
+email_sender = EmailSender()
 
 def get_db_connection():
     return pymysql.connect(**DB_CONFIG)
@@ -342,6 +354,20 @@ def confirm_events():
             ))
             event_id = cursor.lastrowid
             saved_events.append({'event_id': event_id, 'title': event['title']})
+            event_time = event['time']
+            if isinstance(event_time,str):
+                from dateutil import parser
+                try:
+                    event_time = parser.parser(event_time)
+                except:
+                    event_time = datetime.now() + timedelta(hours=1)
+            reminder_time = event_time - timedelta(minutes=30)
+
+            cursor.execute("""
+                INSERT INTO reminder_tasks 
+                (event_id, user_id, reminder_time, advance_minutes, reminder_method)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (event_id, user_id, reminder_time, 30, 'web'))
         
         conn.commit()
         cursor.close()
@@ -712,6 +738,44 @@ def delete_reminder():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/getEventsByMonth', methods=['POST'])
+@login_required
+def get_events_by_month():
+    """按月获取事件"""
+    try:
+        user_id = request.current_user['user_id']
+        data = request.json
+        year = data.get('year')
+        month = data.get('month')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 获取指定月份的所有事件
+        cursor.execute("""
+            SELECT event_id, event_title, event_time, event_location, standard_location,
+                   organizer, activity_type, target_audience, contact_info,
+                   has_conflict, is_confirmed
+            FROM text_events
+            WHERE user_id = %s
+            AND YEAR(event_time) = %s
+            AND MONTH(event_time) = %s
+            ORDER BY event_time
+        """, (user_id, year, month))
+        
+        events = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'events': events,
+            'count': len(events)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ==================== 课表管理接口 ====================
 
 @app.route('/api/getSchedule', methods=['GET'])
@@ -722,7 +786,7 @@ def get_schedule():
         user_id = request.current_user['user_id']
         day_of_week = request.args.get('day_of_week')  # 1-7 对应周一到周日
         
-        courses = schedule_manager.get_schedule(user_id, day_of_week)
+        courses = schedule_manager.get_schedule(user_id, int(day_of_week) if day_of_week else None)
         
         return jsonify({
             'success': True,
@@ -741,12 +805,12 @@ def add_course():
         data = request.json
         
         result = schedule_manager.add_course(
-            user_id=user_id,
+            user_id,
             course_name=data.get('course_name'),
             day_of_week=data.get('day_of_week'),
             start_time=data.get('start_time'),
             end_time=data.get('end_time'),
-            location=data.get('location'),
+            location=data.get('location', ''),
             teacher=data.get('teacher', '')
         )
         
@@ -766,7 +830,7 @@ def delete_course():
         user_id = request.current_user['user_id']
         schedule_id = request.json.get('schedule_id')
         
-        result = schedule_manager.delete_course(user_id, schedule_id)
+        result = schedule_manager.delete_course(user_id, int(schedule_id) if schedule_id else None)
         
         return jsonify(result)
     except Exception as e:
@@ -806,11 +870,11 @@ def get_archive():
         cursor = conn.cursor()
         
         # 构建查询条件
-        conditions = ["user_id = %s", "status = 'completed'"]
+        conditions = ["user_id = %s"]
         params = [user_id]
         
         if event_type:
-            conditions.append("event_type = %s")
+            conditions.append("completion_status = %s")
             params.append(event_type)
         
         if start_date:
@@ -824,7 +888,7 @@ def get_archive():
         where_clause = " AND ".join(conditions)
         
         # 查询总数
-        cursor.execute(f"SELECT COUNT(*) as total FROM text_events WHERE {where_clause}", params)
+        cursor.execute(f"SELECT COUNT(*) as total FROM event_archive WHERE {where_clause}", params)
         total = cursor.fetchone()['total']
         
         # 分页查询
@@ -832,15 +896,23 @@ def get_archive():
         params.extend([page_size, offset])
         
         cursor.execute(f"""
-            SELECT event_id, event_title, event_time, event_location, event_target, 
-                   event_type, confidence, created_at
-            FROM text_events 
+            SELECT archive_id, event_id, event_title, event_time, event_location,
+                   completion_status, completion_time, created_at
+            FROM event_archive 
             WHERE {where_clause}
             ORDER BY event_time DESC
             LIMIT %s OFFSET %s
         """, params)
         
         events = cursor.fetchall()
+        
+        for event in events:
+            if event['event_time']:
+                event['event_time'] = str(event['event_time'])
+            if event['completion_time']:
+                event['completion_time'] = str(event['completion_time'])
+            if event['created_at']:
+                event['created_at'] = str(event['created_at'])
         
         cursor.close()
         conn.close()
@@ -870,14 +942,14 @@ def search_archive():
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT event_id, event_title, event_time, event_location, event_target, 
-                   event_type, confidence, created_at
-            FROM text_events 
+            SELECT archive_id, event_id, event_title, event_time, event_location,
+                   completion_status, completion_time, created_at
+            FROM event_archive 
             WHERE user_id = %s 
-            AND (event_title LIKE %s OR event_location LIKE %s OR event_target LIKE %s)
+            AND (event_title LIKE %s OR event_location LIKE %s)
             ORDER BY event_time DESC
             LIMIT 100
-        """, (user_id, f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'))
+        """, (user_id, f'%{keyword}%', f'%{keyword}%'))
         
         events = cursor.fetchall()
         
@@ -903,9 +975,9 @@ def export_archive():
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT event_title, event_time, event_location, event_target, 
-                   event_type, status, created_at
-            FROM text_events 
+            SELECT event_title, event_time, event_location,
+                   completion_status, completion_time, created_at
+            FROM event_archive 
             WHERE user_id = %s
             ORDER BY event_time DESC
         """, (user_id,))
@@ -923,28 +995,185 @@ def export_archive():
         writer = csv.writer(output)
         
         # 写入表头
-        writer.writerow(['事件标题', '事件时间', '地点', '参与对象', '类型', '状态', '创建时间'])
+        writer.writerow(['事件标题', '事件时间', '地点', '完成状态', '完成时间', '创建时间'])
         
         # 写入数据
         for event in events:
             writer.writerow([
                 event['event_title'],
                 str(event['event_time']),
-                event['event_location'],
-                event['event_target'],
-                event['event_type'],
-                event['status'],
+                event['event_location'] or '',
+                event['completion_status'],
+                str(event['completion_time']) if event['completion_time'] else '',
                 str(event['created_at'])
             ])
         
         output.seek(0)
+        csv_content = '\ufeff' + output.getvalue()
         
-        return output.getvalue(), 200, {
-            'Content-Type': 'text/csv; charset=utf-8',
+        return csv_content, 200, {
+            'Content-Type': 'text/csv; charset=utf-8-sig',
             'Content-Disposition': 'attachment; filename=archive.csv'
         }
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== 文件处理 ====================
+
+@app.route('/api/processFile', methods=['POST'])
+@login_required
+def process_file():
+    """处理上传的文件（PDF/Word/图片OCR）"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '未上传文件'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'success': False, 'message': '文件名为空'}), 400
+        
+        file_type = request.form.get('file_type', '')
+        
+        # 获取文件处理器
+        file_processor = get_file_processor()
+        
+        # 检查文件是否允许
+        if not file_processor.is_allowed_file(file.filename):
+            return jsonify({'success': False, 'message': '不支持的文件格式'}), 400
+        
+        # 处理文件
+        try:
+            text = file_processor.process_file(file, file_type)
+            
+            return jsonify({
+                'success': True,
+                'message': '文件处理成功',
+                'text': text,
+                'filename': file.filename,
+                'file_type': file_type
+            })
+        
+        except ValueError as e:
+            return jsonify({'success': False, 'message': str(e)}), 400
+    
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'文件处理失败: {str(e)}'}), 500
+
+
+# ==================== 湘潭大学增强功能 ====================
+
+from xtu_api_routes import add_xtu_routes
+add_xtu_routes(app, auth_manager, get_db_connection, login_required)
+
+
+# ==================== 邮件提醒功能 ====================
+
+@app.route('/api/testEmail', methods=['POST'])
+@login_required
+def test_email():
+    """测试邮件发送"""
+    try:
+        user_id = request.current_user['user_id']
+        
+        # 获取用户邮箱
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT email FROM users WHERE user_id = %s", (user_id,))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not user or not user['email']:
+            return jsonify({'success': False, 'message': '用户邮箱未设置'}), 400
+        
+        # 发送测试邮件
+        success = email_sender.send_reminder_email(
+            to_email=user['email'],
+            event_title='测试提醒',
+            event_time=datetime.now().strftime('%Y-%m-%d %H:%M'),
+            event_location='测试地点',
+            advance_minutes=30
+        )
+        
+        if success:
+            return jsonify({'success': True, 'message': '测试邮件已发送，请检查邮箱'})
+        else:
+            return jsonify({'success': False, 'message': '邮件发送失败，请检查邮件配置'}), 500
+    
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'发送失败: {str(e)}'}), 500
+
+
+@app.route('/api/sendPendingReminders', methods=['POST'])
+def send_pending_reminders():
+    """发送待发送的提醒邮件（后台定时任务调用）"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 查询需要发送的提醒（提醒时间已到，但状态还是pending）
+        cursor.execute("""
+            SELECT rt.task_id, rt.event_id, rt.user_id, rt.advance_minutes,
+                   te.event_title, te.event_time, te.event_location,
+                   u.email, u.real_name
+            FROM reminder_tasks rt
+            JOIN text_events te ON rt.event_id = te.event_id
+            JOIN users u ON rt.user_id = u.user_id
+            JOIN user_settings us ON u.user_id = us.user_id
+            WHERE rt.status = 'pending'
+            AND rt.reminder_time <= NOW()
+            AND us.email_notification = TRUE
+            AND u.email IS NOT NULL
+            AND u.email != ''
+            LIMIT 50
+        """)
+        
+        reminders = cursor.fetchall()
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for reminder in reminders:
+            try:
+                # 发送邮件
+                success = email_sender.send_reminder_email(
+                    to_email=reminder['email'],
+                    event_title=reminder['event_title'],
+                    event_time=str(reminder['event_time']),
+                    event_location=reminder['event_location'] or '',
+                    advance_minutes=reminder['advance_minutes']
+                )
+                
+                if success:
+                    # 更新状态为已发送
+                    cursor.execute("""
+                        UPDATE reminder_tasks 
+                        SET status = 'sent'
+                        WHERE task_id = %s
+                    """, (reminder['task_id'],))
+                    sent_count += 1
+                else:
+                    failed_count += 1
+                    
+            except Exception as e:
+                print(f"发送提醒失败 task_id={reminder['task_id']}: {e}")
+                failed_count += 1
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'sent_count': sent_count,
+            'failed_count': failed_count,
+            'message': f'成功发送{sent_count}条提醒，失败{failed_count}条'
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'处理失败: {str(e)}'}), 500
 
 
 # ==================== 健康检查 ====================
@@ -955,7 +1184,8 @@ def health_check():
     return jsonify({
         'success': True,
         'message': '服务正常',
-        'version': '2.0-with-auth'
+        'version': '2.0-xtu-enhanced',
+        'email_configured': email_sender.test_connection()
     })
 
 
