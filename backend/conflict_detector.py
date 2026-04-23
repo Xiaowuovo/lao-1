@@ -271,17 +271,25 @@ class ScheduleManager:
     
     def add_course(self, user_id: int, course_name: str = None, day_of_week: int = None,
                    start_time: str = None, end_time: str = None,
-                   location: str = '', teacher: str = '', **kwargs) -> Dict:
+                   location: str = '', teacher: str = '',
+                   weeks: str = '', exam_type: str = '', **kwargs) -> Dict:
         """添加课程到课表"""
         try:
             conn = pymysql.connect(**self.db_config)
             cursor = conn.cursor()
+
+            # 确保 weeks/exam_type 字段存在（兼容旧表结构）
+            try:
+                cursor.execute("ALTER TABLE user_schedules ADD COLUMN IF NOT EXISTS weeks VARCHAR(50) DEFAULT ''")
+                cursor.execute("ALTER TABLE user_schedules ADD COLUMN IF NOT EXISTS exam_type VARCHAR(20) DEFAULT ''")
+            except:
+                pass
             
             cursor.execute("""
                 INSERT INTO user_schedules 
                 (user_id, course_name, weekday, start_time, end_time, 
-                 course_location, teacher_name)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                 course_location, teacher_name, weeks, exam_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 user_id,
                 course_name,
@@ -289,7 +297,9 @@ class ScheduleManager:
                 start_time,
                 end_time,
                 location,
-                teacher
+                teacher,
+                weeks or '',
+                exam_type or ''
             ))
             
             schedule_id = cursor.lastrowid
@@ -310,7 +320,8 @@ class ScheduleManager:
             if day_of_week:
                 cursor.execute("""
                     SELECT schedule_id, course_name, weekday AS day_of_week,
-                           start_time, end_time, course_location AS location, teacher_name AS teacher
+                           start_time, end_time, course_location AS location, teacher_name AS teacher,
+                           COALESCE(weeks,'') AS weeks, COALESCE(exam_type,'') AS exam_type
                     FROM user_schedules
                     WHERE user_id = %s AND weekday = %s
                     ORDER BY start_time
@@ -318,7 +329,8 @@ class ScheduleManager:
             else:
                 cursor.execute("""
                     SELECT schedule_id, course_name, weekday AS day_of_week,
-                           start_time, end_time, course_location AS location, teacher_name AS teacher
+                           start_time, end_time, course_location AS location, teacher_name AS teacher,
+                           COALESCE(weeks,'') AS weeks, COALESCE(exam_type,'') AS exam_type
                     FROM user_schedules
                     WHERE user_id = %s
                     ORDER BY weekday, start_time

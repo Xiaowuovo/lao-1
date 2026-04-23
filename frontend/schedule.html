@@ -6,87 +6,197 @@
   <title>湘潭大学智慧校园任务管理系统 - 课表管理</title>
   <link rel="stylesheet" href="./remainder.css">
   <style>
-    .schedule-grid {
-      display: grid;
-      grid-template-columns: 80px repeat(7, 1fr);
-      gap: 1px;
-      background: #ddd;
-      margin: 20px 0;
-    }
-    
-    .schedule-cell {
-      background: white;
-      padding: 10px;
-      min-height: 80px;
-      font-size: 12px;
-    }
-    
-    .schedule-header {
-      background: #3498db;
-      color: white;
-      font-weight: bold;
-      text-align: center;
-      padding: 15px 10px;
-    }
-    
-    .time-slot {
-      background: #ecf0f1;
-      font-weight: bold;
+    .schedule-toolbar {
       display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+    .schedule-title-bar {
+      text-align: center;
+      margin: 10px 0 4px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #222;
+    }
+    .schedule-subtitle {
+      text-align: left;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    /* === 课表主体 === */
+    .timetable-wrap {
+      overflow-x: auto;
+    }
+    .timetable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 700px;
+    }
+    .timetable th, .timetable td {
+      border: 1px solid #d8d8d8;
+      text-align: center;
+      vertical-align: top;
+      padding: 0;
+    }
+    .timetable thead th {
+      background: #f5f5f5;
+      padding: 8px 4px;
+      font-weight: bold;
+      color: #444;
+    }
+    .timetable thead th.col-period { width: 36px; }
+    .timetable thead th.col-section { width: 40px; background: #eee; }
+
+    /* 左侧时间段大格 */
+    .section-label {
+      background: #f9f9f9;
+      writing-mode: vertical-lr;
+      text-orientation: mixed;
+      font-weight: bold;
+      font-size: 13px;
+      color: #555;
+      width: 32px;
+      text-align: center;
+      vertical-align: middle;
+      letter-spacing: 3px;
+    }
+    .period-cell {
+      background: #fafafa;
+      width: 38px;
+      min-width: 38px;
+      font-size: 14px;
+      font-style: italic;
+      font-weight: bold;
+      color: #888;
+      vertical-align: middle;
+      text-align: center;
+      padding: 6px 2px;
+    }
+    .course-td {
+      min-width: 100px;
+      padding: 3px;
+      vertical-align: top;
+    }
+    .course-td.row-am { min-height: 56px; }
+    .course-td.row-pm { min-height: 56px; }
+    .course-td.row-ev { min-height: 56px; }
+
+    /* 课程卡片 */
+    .course-card {
+      background: #e8f0fe;
+      border: 1px solid #b3c6f7;
+      border-radius: 4px;
+      padding: 5px 6px;
+      text-align: left;
+      cursor: pointer;
+      position: relative;
+      transition: box-shadow .15s;
+      min-height: 52px;
+    }
+    .course-card:hover { box-shadow: 0 2px 8px rgba(102,126,234,.3); }
+    .course-card .cc-name {
+      font-weight: bold;
+      color: #1a3bbf;
+      font-size: 12px;
+      margin-bottom: 3px;
+      line-height: 1.3;
+    }
+    .course-card .cc-row {
+      font-size: 11px;
+      color: #444;
+      display: flex;
+      align-items: flex-start;
+      gap: 3px;
+      line-height: 1.4;
+    }
+    .course-card .cc-icon { flex-shrink: 0; }
+
+    /* 课程详情弹窗 */
+    .course-modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.35);
+      z-index: 1000;
       align-items: center;
       justify-content: center;
     }
-    
-    .course-item {
-      background: #e3f2fd;
-      border-left: 3px solid #2196f3;
-      padding: 8px;
-      margin: 2px 0;
-      border-radius: 3px;
-      cursor: pointer;
+    .course-modal-overlay.show { display: flex; }
+    .course-modal {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px 24px;
+      min-width: 280px;
+      max-width: 380px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      position: relative;
     }
-    
-    .course-item:hover {
-      background: #bbdefb;
-    }
-    
-    .course-name {
+    .course-modal h3 {
+      color: #1a3bbf;
+      font-size: 16px;
+      margin: 0 0 14px;
       font-weight: bold;
-      color: #1976d2;
     }
-    
-    .course-location {
-      font-size: 11px;
-      color: #666;
+    .cm-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 9px;
+      font-size: 13px;
+      color: #333;
     }
-    
+    .cm-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .cm-close {
+      position: absolute; top: 12px; right: 14px;
+      cursor: pointer; font-size: 18px; color: #999;
+      line-height: 1;
+    }
+    .cm-close:hover { color: #e74c3c; }
+    .cm-delete {
+      margin-top: 14px;
+      width: 100%;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .cm-delete:hover { background: #c0392b; }
+
+    /* 添加课程表单 */
     .add-course-form {
       background: white;
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      margin: 20px 0;
+      margin: 16px 0;
     }
-    
     .form-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 15px;
-      margin-bottom: 15px;
+      gap: 14px;
+      margin-bottom: 14px;
     }
-    
     .form-group label {
       display: block;
-      margin-bottom: 5px;
+      margin-bottom: 4px;
       font-weight: bold;
       color: #333;
+      font-size: 13px;
     }
-    
     .form-group input, .form-group select {
       width: 100%;
-      padding: 8px;
+      padding: 7px 8px;
       border: 1px solid #ddd;
       border-radius: 4px;
+      font-size: 13px;
+      box-sizing: border-box;
     }
   </style>
 </head>
@@ -113,10 +223,10 @@
       </ul>
     </div>
 
-    <h2>我的课表</h2>
-    
-    <button class="primary-btn" onclick="toggleAddCourseForm()">+ 添加课程</button>
-    
+    <div class="schedule-toolbar">
+      <button class="primary-btn" onclick="toggleAddCourseForm()">+ 添加课程</button>
+    </div>
+
     <div id="addCourseForm" class="add-course-form" style="display:none;">
       <h3>添加课程</h3>
       <div class="form-row">
@@ -129,7 +239,6 @@
           <input type="text" id="teacher" placeholder="如：张老师">
         </div>
       </div>
-      
       <div class="form-row">
         <div class="form-group">
           <label>星期 *</label>
@@ -148,29 +257,92 @@
           <input type="text" id="location" placeholder="如：逸夫楼101">
         </div>
       </div>
-      
       <div class="form-row">
         <div class="form-group">
-          <label>开始时间 *</label>
+          <label>节次（如：1-2节）*</label>
+          <select id="periodSelect" onchange="syncTimeFromPeriod()">
+            <option value="1">第1节 08:00-08:45</option>
+            <option value="2">第2节 08:55-09:40</option>
+            <option value="3">第3节 10:00-10:45</option>
+            <option value="4">第4节 10:55-11:40</option>
+            <option value="5">第5节 14:00-14:45</option>
+            <option value="6">第6节 14:55-15:40</option>
+            <option value="7">第7节 16:00-16:45</option>
+            <option value="8">第8节 16:55-17:40</option>
+            <option value="9">第9节 19:00-19:45</option>
+            <option value="10">第10节 19:55-20:40</option>
+            <option value="11">第11节 20:50-21:35</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>结束节次</label>
+          <select id="periodEndSelect" onchange="syncTimeFromPeriod()">
+            <option value="1">第1节</option>
+            <option value="2">第2节</option>
+            <option value="3">第3节</option>
+            <option value="4">第4节</option>
+            <option value="5">第5节</option>
+            <option value="6">第6节</option>
+            <option value="7">第7节</option>
+            <option value="8">第8节</option>
+            <option value="9">第9节</option>
+            <option value="10">第10节</option>
+            <option value="11">第11节</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>开始时间（自动填入）</label>
           <input type="time" id="startTime" value="08:00">
         </div>
         <div class="form-group">
-          <label>结束时间 *</label>
-          <input type="time" id="endTime" value="09:40">
+          <label>结束时间（自动填入）</label>
+          <input type="time" id="endTime" value="08:45">
         </div>
       </div>
-      
-      <div class="form-group">
-        <label>上课周次</label>
-        <input type="text" id="weeks" placeholder="如：1-16周" value="1-18">
+      <div class="form-row">
+        <div class="form-group">
+          <label>上课周次</label>
+          <input type="text" id="weeks" placeholder="如：1-16周" value="1-18周">
+        </div>
+        <div class="form-group">
+          <label>考核方式</label>
+          <select id="examType">
+            <option value="">未知</option>
+            <option value="考试">考试</option>
+            <option value="考查">考查</option>
+          </select>
+        </div>
       </div>
-      
       <button class="primary-btn" onclick="addCourse()">保存课程</button>
-      <button class="secondary-btn" onclick="toggleAddCourseForm()">取消</button>
+      <button class="secondary-btn" onclick="toggleAddCourseForm()" style="margin-left:8px;">取消</button>
     </div>
 
-    <div class="schedule-grid" id="scheduleGrid">
-      <!-- 课表网格将由JavaScript生成 -->
+    <div class="schedule-title-bar" id="scheduleTitle">我的课表</div>
+    <div class="timetable-wrap">
+      <table class="timetable" id="scheduleGrid">
+        <thead>
+          <tr>
+            <th class="col-section">时间段</th>
+            <th class="col-period">节次</th>
+            <th>星期一</th><th>星期二</th><th>星期三</th>
+            <th>星期四</th><th>星期五</th><th>星期六</th><th>星期日</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 课程详情弹窗 -->
+  <div class="course-modal-overlay" id="courseModal" onclick="closeCourseModal(event)">
+    <div class="course-modal" id="courseModalInner">
+      <span class="cm-close" onclick="closeCourseModal()">×</span>
+      <h3 id="cmTitle"></h3>
+      <div id="cmBody"></div>
+      <button class="cm-delete" id="cmDeleteBtn">🗑 删除此课程</button>
     </div>
   </div>
 

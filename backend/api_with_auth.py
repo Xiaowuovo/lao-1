@@ -523,10 +523,10 @@ def get_reminders():
         for reminder in reminders:
             if reminder['event_time']:
                 t = reminder['event_time']
-                reminder['event_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
+                reminder['event_time'] = t.strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
             if reminder['reminder_time']:
                 t = reminder['reminder_time']
-                reminder['reminder_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
+                reminder['reminder_time'] = t.strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
 
         cursor.close()
         conn.close()
@@ -785,15 +785,11 @@ def get_events_by_month():
         cursor.close()
         conn.close()
         
-        # 将事件时间转为北京时间字符串（UTC+8）
+        # 直接格式化时间（DB存的就是北京时间）
         for event in events:
             if event.get('event_time'):
-                utc_time = event['event_time']
-                if hasattr(utc_time, 'strftime'):
-                    beijing_time = utc_time + timedelta(hours=8)
-                    event['event_time'] = beijing_time.strftime('%Y-%m-%d %H:%M:%S')
-                else:
-                    event['event_time'] = str(utc_time)
+                t = event['event_time']
+                event['event_time'] = t.strftime('%Y-%m-%d %H:%M:%S') if hasattr(t, 'strftime') else str(t)
         
         return jsonify({
             'success': True,
@@ -839,7 +835,9 @@ def add_course():
             start_time=data.get('start_time'),
             end_time=data.get('end_time'),
             location=data.get('location', ''),
-            teacher=data.get('teacher', '')
+            teacher=data.get('teacher', ''),
+            weeks=data.get('weeks', ''),
+            exam_type=data.get('exam_type', '')
         )
         
         if result['success']:
@@ -937,13 +935,13 @@ def get_archive():
         for event in events:
             if event['event_time']:
                 t = event['event_time']
-                event['event_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
+                event['event_time'] = t.strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
             if event['completion_time']:
                 t = event['completion_time']
-                event['completion_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
+                event['completion_time'] = t.strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
             if event['created_at']:
                 t = event['created_at']
-                event['created_at'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
+                event['created_at'] = t.strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
         
         cursor.close()
         conn.close()
