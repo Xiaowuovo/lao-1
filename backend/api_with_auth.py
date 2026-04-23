@@ -475,49 +475,67 @@ def create_reminder_enhanced():
 @app.route('/api/getReminders', methods=['GET'])
 @login_required
 def get_reminders():
-    """获取用户的提醒列表"""
+    """获取用户的提醒列表（与日历同源，基于 text_events）"""
     try:
         user_id = request.current_user['user_id']
         status = request.args.get('status', 'all')
-        
+        time_range = request.args.get('time_range', 'all')
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
+        # 以 text_events 为主表，LEFT JOIN reminder_tasks 获取提醒状态
         query = """
-            SELECT 
-                rt.task_id, rt.reminder_time, rt.status, rt.advance_minutes,
-                te.event_id, te.event_title, te.event_time, te.event_location,
-                te.event_type, te.activity_type, te.has_conflict
-            FROM reminder_tasks rt
-            JOIN text_events te ON rt.event_id = te.event_id
-            WHERE rt.user_id = %s
+            SELECT
+                te.event_id,
+                te.event_title,
+                te.event_time,
+                te.event_location,
+                te.target_audience AS event_target,
+                te.activity_type,
+                te.has_conflict,
+                te.organizer,
+                te.contact_info,
+                rt.task_id,
+                rt.reminder_time,
+                rt.advance_minutes,
+                COALESCE(rt.status, 'pending') AS status
+            FROM text_events te
+            LEFT JOIN reminder_tasks rt ON rt.event_id = te.event_id AND rt.user_id = te.user_id
+            WHERE te.user_id = %s AND te.is_confirmed = TRUE
         """
-        
         params = [user_id]
-        
+
         if status != 'all':
-            query += " AND rt.status = %s"
+            query += " AND COALESCE(rt.status, 'pending') = %s"
             params.append(status)
-        
-        query += " ORDER BY rt.reminder_time DESC"
-        
+
+        if time_range == 'week':
+            query += " AND te.event_time BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)"
+        elif time_range == 'month':
+            query += " AND te.event_time BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)"
+
+        query += " ORDER BY te.event_time ASC"
+
         cursor.execute(query, params)
         reminders = cursor.fetchall()
-        
+
         for reminder in reminders:
-            if reminder['reminder_time']:
-                reminder['reminder_time'] = (reminder['reminder_time'] + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M')
             if reminder['event_time']:
-                reminder['event_time'] = (reminder['event_time'] + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M')
-        
+                t = reminder['event_time']
+                reminder['event_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
+            if reminder['reminder_time']:
+                t = reminder['reminder_time']
+                reminder['reminder_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
+
         cursor.close()
         conn.close()
-        
+
         return jsonify({
             'success': True,
             'reminders': reminders
         })
-    
+
     except Exception as e:
         return jsonify({'success': False, 'message': f'获取失败: {str(e)}'}), 500
 

@@ -328,9 +328,20 @@ class ScheduleManager:
             
             for s in schedules:
                 if s['start_time'] is not None:
-                    s['start_time'] = str(s['start_time'])
+                    t = s['start_time']
+                    if hasattr(t, 'seconds'):
+                        # timedelta: 转为 HH:MM:SS
+                        total = int(t.total_seconds())
+                        s['start_time'] = f"{total//3600:02d}:{(total%3600)//60:02d}:{total%60:02d}"
+                    else:
+                        s['start_time'] = str(t)
                 if s['end_time'] is not None:
-                    s['end_time'] = str(s['end_time'])
+                    t = s['end_time']
+                    if hasattr(t, 'seconds'):
+                        total = int(t.total_seconds())
+                        s['end_time'] = f"{total//3600:02d}:{(total%3600)//60:02d}:{total%60:02d}"
+                    else:
+                        s['end_time'] = str(t)
             
             cursor.close()
             conn.close()

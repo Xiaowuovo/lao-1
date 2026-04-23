@@ -73,9 +73,11 @@ function getCoursesForSlot(day, timeSlot) {
     
     return schedules.filter(course => {
         if (course.day_of_week !== day) return false;
+        if (!course.start_time || !course.end_time) return false;
         
-        const courseStart = course.start_time.substring(0, 5);
-        const courseEnd = course.end_time.substring(0, 5);
+        // 统一截取为 HH:MM 格式进行比较
+        const courseStart = course.start_time.substring(0, 5).padStart(5, '0');
+        const courseEnd = course.end_time.substring(0, 5).padStart(5, '0');
         
         return courseStart >= slotStart && courseEnd <= slotEnd;
     });

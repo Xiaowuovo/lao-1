@@ -166,15 +166,32 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
             
             conn = get_db_connection()
             cursor = conn.cursor()
-            
-            # 检查是否存在相同标题和时间的事件（重复事件检测）
-            cursor.execute("""
-                SELECT event_id FROM text_events
-                WHERE user_id = %s 
-                AND event_title = %s 
-                AND event_time = %s
-                LIMIT 1
-            """, (user_id, event_data['title'], event_data.get('time')))
+
+            # 标准化时间字符串为 datetime 对象，再存入DB
+            event_time_str = event_data.get('time')
+            event_time_obj = _parse_event_time(event_time_str) if event_time_str else None
+            # 用标准化后的字符串替换原始值
+            if event_time_obj:
+                event_data['time'] = event_time_obj.strftime('%Y-%m-%d %H:%M:%S')
+
+            # 重复事件检测：相同标题 + 时间窗口 ±5分钟
+            existing_event = None
+            if event_time_obj:
+                window_start = event_time_obj - timedelta(minutes=5)
+                window_end = event_time_obj + timedelta(minutes=5)
+                cursor.execute("""
+                    SELECT event_id FROM text_events
+                    WHERE user_id = %s
+                    AND event_title = %s
+                    AND event_time BETWEEN %s AND %s
+                    LIMIT 1
+                """, (user_id, event_data['title'], window_start, window_end))
+            else:
+                cursor.execute("""
+                    SELECT event_id FROM text_events
+                    WHERE user_id = %s AND event_title = %s AND event_time IS NULL
+                    LIMIT 1
+                """, (user_id, event_data['title']))
             
             existing_event = cursor.fetchone()
             
@@ -228,6 +245,28 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                                 """, (event_id, user_id, reminder_time, 30, 'web'))
                         except:
                             pass
+                
+                # 同步更新归档表中的记录
+                try:
+                    cursor.execute("""
+                        SELECT archive_id FROM event_archive
+                        WHERE user_id = %s AND event_id = %s LIMIT 1
+                    """, (user_id, event_id))
+                    if not cursor.fetchone():
+                        cursor.execute("""
+                            INSERT INTO event_archive 
+                            (user_id, event_id, event_title, event_time, event_location,
+                             completion_status, completion_time, created_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        """, (
+                            user_id, event_id,
+                            event_data['title'],
+                            event_data.get('time'),
+                            event_data.get('location', {}).get('standard', '') or event_data.get('location', {}).get('original', ''),
+                            'completed'
+                        ))
+                except:
+                    pass  # 归档表写入失败不影响主流程
                 
                 conn.commit()
                 cursor.close()
@@ -284,6 +323,23 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                     except:
                         pass  # 如果时间解析失败，跳过创建提醒
                 
+                # 写入归档表
+                try:
+                    cursor.execute("""
+                        INSERT INTO event_archive 
+                        (user_id, event_id, event_title, event_time, event_location,
+                         completion_status, completion_time, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    """, (
+                        user_id, event_id,
+                        event_data['title'],
+                        event_data.get('time'),
+                        event_data.get('location', {}).get('standard', '') or event_data.get('location', {}).get('original', ''),
+                        'completed'
+                    ))
+                except:
+                    pass  # 归档表写入失败不影响主流程
+                
                 conn.commit()
                 cursor.close()
                 conn.close()
@@ -299,6 +355,40 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
             return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
     
     
+    @app.route('/api/xtu/deleteEvent', methods=['POST'])
+    @login_required
+    def xtu_delete_event():
+        """删除事件（同时删除关联的提醒任务和归档记录）"""
+        try:
+            user_id = request.current_user['user_id']
+            event_id = request.json.get('event_id')
+            if not event_id:
+                return jsonify({'success': False, 'message': '缺少 event_id'}), 400
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 验证归属
+            cursor.execute("SELECT event_id FROM text_events WHERE event_id = %s AND user_id = %s", (event_id, user_id))
+            if not cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return jsonify({'success': False, 'message': '事件不存在或无权限'}), 404
+
+            # 级联删除（外键 ON DELETE CASCADE 会自动删 reminder_tasks，但归档表用软删除）
+            cursor.execute("DELETE FROM event_archive WHERE event_id = %s AND user_id = %s", (event_id, user_id))
+            cursor.execute("DELETE FROM text_events WHERE event_id = %s AND user_id = %s", (event_id, user_id))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            return jsonify({'success': True, 'message': '事件已删除'})
+
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+
+
     @app.route('/api/xtu/searchLocation', methods=['GET'])
     @login_required
     def xtu_search_location():
@@ -354,7 +444,7 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                     SUM(CASE WHEN is_confirmed = TRUE THEN 1 ELSE 0 END) as confirmed,
                     SUM(CASE WHEN is_confirmed = FALSE THEN 1 ELSE 0 END) as pending
                 FROM text_events 
-                WHERE user_id = %s AND deleted_at IS NULL
+                WHERE user_id = %s
             """, (user_id,))
             
             event_stats = cursor.fetchone()

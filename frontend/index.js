@@ -242,50 +242,89 @@ async function extractBatchEvents() {
     }
 }
 
-// 显示批量事件卡片
+// 批量卡片的事件数据存储（用index索引）
+let batchEventCards = [];
+
+// 显示批量事件卡片（与智能提取卡片字段一致，支持内联编辑）
 function displayBatchCards(eventCards) {
+    batchEventCards = eventCards.map(c => JSON.parse(JSON.stringify(c)));
+    renderBatchCards();
+}
+
+function renderBatchCards() {
     const container = document.getElementById('eventsContainer');
+    const total = batchEventCards.length;
     
-    let html = `<div style="padding:20px; background:#e3f2fd; border-radius:8px; margin-bottom:20px;">
-        <h3>成功提取 ${eventCards.length} 个事件</h3>
-        <p>请逐一确认并保存</p>
+    let html = `<div style="padding:15px 20px; background:#e3f2fd; border-radius:8px; margin-bottom:20px;">
+        <h3 style="margin:0 0 4px;">成功提取 ${total} 个事件</h3>
+        <p style="margin:0; color:#555;">请逐一确认并保存，点击字段可直接编辑</p>
     </div>`;
     
-    eventCards.forEach((card, index) => {
-        const hasErrors = card.required_fields_missing && card.required_fields_missing.length > 0;
+    batchEventCards.forEach((card, index) => {
+        const hasErrors = !card.time;
         const confidenceClass = card.confidence >= 0.8 ? 'high' : card.confidence >= 0.6 ? 'medium' : 'low';
+        const loc = card.location || {};
         
         html += `
             <div class="confirmation-card ${hasErrors ? 'has-errors' : ''}" style="margin-bottom:20px;" id="batch-card-${index}">
                 <div class="card-header">
-                    <div class="card-title">📋 事件 ${index + 1}/${eventCards.length}</div>
-                    <span class="confidence-badge confidence-${confidenceClass}">
-                        置信度: ${(card.confidence * 100).toFixed(0)}%
-                    </span>
+                    <div class="card-title">📋 事件 ${index + 1}/${total}</div>
+                    <span class="confidence-badge confidence-${confidenceClass}">置信度: ${(card.confidence * 100).toFixed(0)}%</span>
                 </div>
                 
                 <div class="field-group">
-                    <div class="field-label">标题 ${!card.title || card.title === '待补充' ? '<span class="required-tag">必填</span>' : ''}</div>
-                    <div class="field-value ${!card.title || card.title === '待补充' ? 'missing' : ''}">${card.title || '待补充'}</div>
+                    <div class="field-label">标题</div>
+                    <div class="field-value editable" id="batch-field-${index}-title" onclick="editBatchField(${index},'title')">
+                        ${card.title || '待补充 - 点击编辑'}
+                    </div>
                 </div>
                 
                 <div class="field-group">
                     <div class="field-label">时间 ${!card.time ? '<span class="required-tag">必填</span>' : ''}</div>
-                    <div class="field-value ${!card.time ? 'missing' : ''}">${card.time || '待补充'}</div>
+                    <div class="field-value editable ${!card.time ? 'missing' : ''}" id="batch-field-${index}-time" onclick="editBatchField(${index},'time')">
+                        ${card.time || '待补充 - 点击编辑'}
+                    </div>
                 </div>
                 
                 <div class="field-group">
                     <div class="field-label">地点</div>
-                    <div class="field-value">${card.location.standard || '待补充'}</div>
+                    <div class="field-value editable" id="batch-field-${index}-location" onclick="editBatchField(${index},'location')">
+                        ${loc.standard || '待补充 - 点击编辑'}
+                    </div>
+                </div>
+                
+                <div class="field-group">
+                    <div class="field-label">主办单位</div>
+                    <div class="field-value editable" id="batch-field-${index}-organizer" onclick="editBatchField(${index},'organizer')">
+                        ${card.organizer || '待补充'}
+                    </div>
                 </div>
                 
                 <div class="field-group">
                     <div class="field-label">活动类型</div>
-                    <div class="field-value"><span class="activity-type-badge type-${card.activity_type}">${card.activity_type}</span></div>
+                    <div class="field-value editable" id="batch-field-${index}-activity_type" onclick="editBatchField(${index},'activity_type')">
+                        <span class="activity-type-badge type-${card.activity_type}">${card.activity_type}</span>
+                    </div>
                 </div>
                 
+                <div class="field-group">
+                    <div class="field-label">面向人群</div>
+                    <div class="field-value editable" id="batch-field-${index}-audience" onclick="editBatchField(${index},'audience')">
+                        ${card.audience || '相关人员'}
+                    </div>
+                </div>
+                
+                <div class="field-group">
+                    <div class="field-label">联系方式</div>
+                    <div class="field-value editable" id="batch-field-${index}-contact" onclick="editBatchField(${index},'contact')">
+                        ${card.contact || '待补充'}
+                    </div>
+                </div>
+                
+                ${hasErrors ? `<div class="warning-badge" style="display:block; margin:10px 0;">⚠️ 请补充时间后保存</div>` : ''}
+                
                 <div class="action-buttons">
-                    <button class="btn-confirm" onclick="confirmBatchEvent(event, ${index})" ${hasErrors ? 'disabled' : ''} data-event='${JSON.stringify(card).replace(/'/g, "&#39;")}'>
+                    <button class="btn-confirm" onclick="confirmBatchEventByIndex(${index})" ${hasErrors ? 'disabled' : ''}>
                         确认保存
                     </button>
                 </div>
@@ -296,33 +335,102 @@ function displayBatchCards(eventCards) {
     container.innerHTML = html;
 }
 
-// 确认批量事件中的单个事件
-async function confirmBatchEvent(evt, index) {
+// 批量卡片内联编辑字段
+function editBatchField(index, fieldName) {
+    const card = batchEventCards[index];
+    const elId = `batch-field-${index}-${fieldName}`;
+    const el = document.getElementById(elId);
+    if (!el) return;
+    
+    if (document.getElementById(`batch-inline-${index}-${fieldName}`)) {
+        saveBatchInlineEdit(index, fieldName);
+        return;
+    }
+    
+    let currentValue = '';
+    if (fieldName === 'location') {
+        currentValue = (card.location && card.location.standard) || '';
+        if (currentValue === '待补充') currentValue = '';
+    } else {
+        currentValue = card[fieldName] || '';
+        if (currentValue === '待补充') currentValue = '';
+    }
+    
+    let inputHtml = '';
+    if (fieldName === 'time') {
+        const dtVal = toDatetimeLocal(currentValue);
+        inputHtml = `<input type="datetime-local" id="batch-inline-${index}-${fieldName}" value="${dtVal}"
+            style="width:100%; padding:6px 10px; font-size:14px; border:2px solid #667eea; border-radius:6px; outline:none;"
+            onkeydown="if(event.key==='Enter') saveBatchInlineEdit(${index},'${fieldName}')">` ;
+    } else {
+        inputHtml = `<input type="text" id="batch-inline-${index}-${fieldName}" value="${currentValue.replace(/"/g,'&quot;')}"
+            placeholder="请输入内容..."
+            style="width:100%; padding:6px 10px; font-size:14px; border:2px solid #667eea; border-radius:6px; outline:none;"
+            onkeydown="if(event.key==='Enter') saveBatchInlineEdit(${index},'${fieldName}')">` ;
+    }
+    
+    el.innerHTML = inputHtml + `<div style="margin-top:6px; display:flex; gap:8px;">
+        <button onclick="saveBatchInlineEdit(${index},'${fieldName}')" 
+            style="padding:4px 12px; background:#667eea; color:white; border:none; border-radius:4px; cursor:pointer; font-size:13px;">保存</button>
+        <button onclick="renderBatchCards()" 
+            style="padding:4px 12px; background:#95a5a6; color:white; border:none; border-radius:4px; cursor:pointer; font-size:13px;">取消</button>
+    </div>`;
+    
+    const input = document.getElementById(`batch-inline-${index}-${fieldName}`);
+    if (input) { input.focus(); input.select && input.select(); }
+}
+
+function saveBatchInlineEdit(index, fieldName) {
+    const input = document.getElementById(`batch-inline-${index}-${fieldName}`);
+    if (!input) return;
+    
+    let newValue = input.value.trim();
+    if (fieldName === 'time' && newValue) {
+        newValue = newValue.replace('T', ' ') + ':00';
+    }
+    
+    if (newValue) {
+        const card = batchEventCards[index];
+        if (fieldName === 'location') {
+            card.location = card.location || {};
+            card.location.standard = newValue;
+            card.location.original = newValue;
+        } else {
+            card[fieldName] = newValue;
+        }
+    }
+    
+    renderBatchCards();
+}
+
+// 确认批量事件中的单个事件（通过index从batchEventCards取数据）
+async function confirmBatchEventByIndex(index) {
+    const card = batchEventCards[index];
+    if (!card) return;
+    
+    if (!card.time) {
+        alert('请先填写事件时间');
+        return;
+    }
+    
     try {
-        console.log('确认批量事件', index);
-        // 从按钮的data属性获取事件数据
-        const button = evt.target;
-        const eventCard = JSON.parse(button.getAttribute('data-event').replace(/&#39;/g, "'"));
-        
         const response = await fetch(`${API_BASE_URL}/xtu/confirmEvent`, {
             method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ event_data: eventCard })
+            body: JSON.stringify({ event_data: card })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            // 移除该卡片
             const cardElement = document.getElementById(`batch-card-${index}`);
             if (cardElement) {
                 cardElement.style.background = '#d4edda';
-                cardElement.innerHTML = '<div style="padding:20px; text-align:center; color:#155724;"><h3>已保存</h3></div>';
+                cardElement.style.border = '1px solid #27ae60';
+                cardElement.innerHTML = '<div style="padding:20px; text-align:center; color:#155724;"><h3>✅ 已保存</h3></div>';
                 
                 setTimeout(() => {
                     cardElement.remove();
-                    
-                    // 检查是否还有未确认的卡片
                     const remaining = document.querySelectorAll('.confirmation-card').length;
                     if (remaining === 0) {
                         document.getElementById('eventsContainer').innerHTML = `
@@ -332,7 +440,7 @@ async function confirmBatchEvent(evt, index) {
                         `;
                         loadMiniStats();
                     }
-                }, 1500);
+                }, 1200);
             }
         } else {
             alert('保存失败：' + result.message);
@@ -417,7 +525,7 @@ function displayConfirmationCard(eventCard) {
                     ${!eventCard.title || eventCard.title === '待补充' ? '<span class="required-tag">必填</span>' : ''}
                 </div>
                 <div class="field-value editable ${!eventCard.title || eventCard.title === '待补充' ? 'missing' : ''}" 
-                     onclick="editField('title')">
+                     id="edit-field-title" onclick="editField('title')">
                     ${eventCard.title || '待补充 - 点击编辑'}
                 </div>
             </div>
@@ -428,7 +536,7 @@ function displayConfirmationCard(eventCard) {
                     ${!eventCard.time ? '<span class="required-tag">必填</span>' : ''}
                 </div>
                 <div class="field-value editable ${!eventCard.time ? 'missing' : ''}" 
-                     onclick="editField('time')">
+                     id="edit-field-time" onclick="editField('time')">
                     ${eventCard.time || '待补充 - 点击编辑'}
                     ${eventCard.is_recurring ? '<span class="recurring-badge">循环事件</span>' : ''}
                 </div>
@@ -437,22 +545,22 @@ function displayConfirmationCard(eventCard) {
             ${eventCard.deadline ? `
             <div class="field-group">
                 <div class="field-label">截止时间</div>
-                <div class="field-value">${eventCard.deadline}</div>
+                <div class="field-value editable" id="edit-field-deadline" onclick="editField('deadline')">${eventCard.deadline}</div>
             </div>
             ` : ''}
             
             <div class="field-group">
                 <div class="field-label">
                     地点
-                    ${eventCard.location.standard === '待补充' ? '<span class="required-tag">必填</span>' : ''}
+                    ${!eventCard.location || eventCard.location.standard === '待补充' ? '<span class="required-tag">必填</span>' : ''}
                 </div>
-                <div class="field-value editable ${eventCard.location.standard === '待补充' ? 'missing' : ''}" 
-                     onclick="editField('location')">
+                <div class="field-value editable ${!eventCard.location || eventCard.location.standard === '待补充' ? 'missing' : ''}" 
+                     id="edit-field-location" onclick="editField('location')">
                     <div class="location-info">
-                        <div class="location-standard">${eventCard.location.standard || '待补充 - 点击编辑'}</div>
-                        ${eventCard.location.original && eventCard.location.original !== eventCard.location.standard ? 
+                        <div class="location-standard">${(eventCard.location && eventCard.location.standard) || '待补充 - 点击编辑'}</div>
+                        ${eventCard.location && eventCard.location.original && eventCard.location.original !== eventCard.location.standard ? 
                             `<div class="location-original">原始: ${eventCard.location.original}</div>` : ''}
-                        ${eventCard.location.warning ? 
+                        ${eventCard.location && eventCard.location.warning ? 
                             `<div class="warning-badge">${eventCard.location.warning}</div>` : ''}
                     </div>
                 </div>
@@ -460,14 +568,14 @@ function displayConfirmationCard(eventCard) {
             
             <div class="field-group">
                 <div class="field-label">主办单位</div>
-                <div class="field-value editable" onclick="editField('organizer')">
+                <div class="field-value editable" id="edit-field-organizer" onclick="editField('organizer')">
                     ${eventCard.organizer || '待补充'}
                 </div>
             </div>
             
             <div class="field-group">
                 <div class="field-label">活动类型</div>
-                <div class="field-value">
+                <div class="field-value editable" id="edit-field-activity_type" onclick="editField('activity_type')">
                     <span class="activity-type-badge type-${eventCard.activity_type}">
                         ${eventCard.activity_type}
                     </span>
@@ -476,15 +584,15 @@ function displayConfirmationCard(eventCard) {
             
             <div class="field-group">
                 <div class="field-label">面向人群</div>
-                <div class="field-value editable" onclick="editField('audience')">
-                    ${eventCard.audience}
+                <div class="field-value editable" id="edit-field-audience" onclick="editField('audience')">
+                    ${eventCard.audience || '待补充'}
                 </div>
             </div>
             
             <div class="field-group">
                 <div class="field-label">联系方式</div>
-                <div class="field-value editable" onclick="editField('contact')">
-                    ${eventCard.contact}
+                <div class="field-value editable" id="edit-field-contact" onclick="editField('contact')">
+                    ${eventCard.contact || '待补充'}
                 </div>
             </div>
             
@@ -507,50 +615,97 @@ function displayConfirmationCard(eventCard) {
     container.innerHTML = html;
 }
 
-// 编辑字段
+// 将时间字符串转为 datetime-local 可用格式 YYYY-MM-DDTHH:MM
+function toDatetimeLocal(timeStr) {
+    if (!timeStr) return '';
+    const cleaned = timeStr.replace(' ', 'T').substring(0, 16);
+    return cleaned;
+}
+
+// 内联编辑字段（替代 prompt 弹窗）
 function editField(fieldName) {
     if (!currentEventCard) return;
     
-    const fieldLabels = {
-        'title': '标题',
-        'time': '时间 (格式: YYYY-MM-DD HH:MM:SS)',
-        'location': '地点',
-        'organizer': '主办单位',
-        'audience': '面向人群',
-        'contact': '联系方式'
-    };
+    const el = document.getElementById(`edit-field-${fieldName}`);
+    if (!el) return;
+    
+    // 如果已经在编辑中，保存并关闭
+    const existing = document.getElementById(`inline-editor-${fieldName}`);
+    if (existing) {
+        saveInlineEdit(fieldName);
+        return;
+    }
     
     let currentValue = '';
     if (fieldName === 'location') {
         currentValue = currentEventCard.location.standard;
+        if (currentValue === '待补充') currentValue = '';
     } else {
         currentValue = currentEventCard[fieldName] || '';
+        if (currentValue === '待补充') currentValue = '';
     }
     
-    const newValue = prompt(`请输入${fieldLabels[fieldName]}：`, currentValue);
+    let inputHtml = '';
+    if (fieldName === 'time') {
+        const dtVal = toDatetimeLocal(currentValue);
+        inputHtml = `<input type="datetime-local" id="inline-editor-${fieldName}" value="${dtVal}" 
+            style="width:100%; padding:6px 10px; font-size:14px; border:2px solid #667eea; border-radius:6px; outline:none;"
+            onkeydown="if(event.key==='Enter') saveInlineEdit('${fieldName}')">`;
+    } else {
+        inputHtml = `<input type="text" id="inline-editor-${fieldName}" value="${currentValue.replace(/"/g, '&quot;')}" 
+            placeholder="请输入内容..."
+            style="width:100%; padding:6px 10px; font-size:14px; border:2px solid #667eea; border-radius:6px; outline:none;"
+            onkeydown="if(event.key==='Enter') saveInlineEdit('${fieldName}')">`;
+    }
     
-    if (newValue !== null && newValue.trim() !== '') {
+    el.innerHTML = inputHtml + `<div style="margin-top:6px; display:flex; gap:8px;">
+        <button onclick="saveInlineEdit('${fieldName}')" 
+            style="padding:4px 12px; background:#667eea; color:white; border:none; border-radius:4px; cursor:pointer; font-size:13px;">保存</button>
+        <button onclick="cancelInlineEdit('${fieldName}')" 
+            style="padding:4px 12px; background:#95a5a6; color:white; border:none; border-radius:4px; cursor:pointer; font-size:13px;">取消</button>
+    </div>`;
+    
+    const input = document.getElementById(`inline-editor-${fieldName}`);
+    if (input) { input.focus(); input.select && input.select(); }
+}
+
+function saveInlineEdit(fieldName) {
+    const input = document.getElementById(`inline-editor-${fieldName}`);
+    if (!input) return;
+    
+    let newValue = input.value.trim();
+    
+    if (fieldName === 'time' && newValue) {
+        // datetime-local 返回 YYYY-MM-DDTHH:MM，转为 YYYY-MM-DD HH:MM:SS
+        newValue = newValue.replace('T', ' ') + ':00';
+    }
+    
+    if (newValue) {
         if (fieldName === 'location') {
-            currentEventCard.location.standard = newValue.trim();
-            currentEventCard.location.original = newValue.trim();
+            currentEventCard.location.standard = newValue;
+            currentEventCard.location.original = newValue;
         } else {
-            currentEventCard[fieldName] = newValue.trim();
+            currentEventCard[fieldName] = newValue;
         }
-        
-        // 重新计算缺失字段
-        currentEventCard.required_fields_missing = [];
-        if (!currentEventCard.title || currentEventCard.title === '待补充') {
-            currentEventCard.required_fields_missing.push('标题');
-        }
-        if (!currentEventCard.time) {
-            currentEventCard.required_fields_missing.push('时间');
-        }
-        if (!currentEventCard.location.standard || currentEventCard.location.standard === '待补充') {
-            currentEventCard.required_fields_missing.push('地点');
-        }
-        
-        displayConfirmationCard(currentEventCard);
     }
+    
+    // 重新计算缺失字段
+    currentEventCard.required_fields_missing = [];
+    if (!currentEventCard.title || currentEventCard.title === '待补充') {
+        currentEventCard.required_fields_missing.push('标题');
+    }
+    if (!currentEventCard.time) {
+        currentEventCard.required_fields_missing.push('时间');
+    }
+    if (!currentEventCard.location || !currentEventCard.location.standard || currentEventCard.location.standard === '待补充') {
+        currentEventCard.required_fields_missing.push('地点');
+    }
+    
+    displayConfirmationCard(currentEventCard);
+}
+
+function cancelInlineEdit(fieldName) {
+    displayConfirmationCard(currentEventCard);
 }
 
 // 确认事件
