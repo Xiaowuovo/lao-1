@@ -1,13 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api';
-
-// 获取认证token
-function getAuthHeaders() {
-    const token = localStorage.getItem('sessionToken');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-    };
-}
+// API_BASE_URL 和 getAuthHeaders 已在 auth-check.js 中声明
 
 let archives = [];
 let currentFilter = 'all';

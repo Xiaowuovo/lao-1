@@ -506,9 +506,9 @@ def get_reminders():
         
         for reminder in reminders:
             if reminder['reminder_time']:
-                reminder['reminder_time'] = reminder['reminder_time'].strftime('%Y-%m-%d %H:%M')
+                reminder['reminder_time'] = (reminder['reminder_time'] + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M')
             if reminder['event_time']:
-                reminder['event_time'] = reminder['event_time'].strftime('%Y-%m-%d %H:%M')
+                reminder['event_time'] = (reminder['event_time'] + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M')
         
         cursor.close()
         conn.close()
@@ -767,6 +767,16 @@ def get_events_by_month():
         cursor.close()
         conn.close()
         
+        # 将事件时间转为北京时间字符串（UTC+8）
+        for event in events:
+            if event.get('event_time'):
+                utc_time = event['event_time']
+                if hasattr(utc_time, 'strftime'):
+                    beijing_time = utc_time + timedelta(hours=8)
+                    event['event_time'] = beijing_time.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    event['event_time'] = str(utc_time)
+        
         return jsonify({
             'success': True,
             'events': events,
@@ -908,11 +918,14 @@ def get_archive():
         
         for event in events:
             if event['event_time']:
-                event['event_time'] = str(event['event_time'])
+                t = event['event_time']
+                event['event_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
             if event['completion_time']:
-                event['completion_time'] = str(event['completion_time'])
+                t = event['completion_time']
+                event['completion_time'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
             if event['created_at']:
-                event['created_at'] = str(event['created_at'])
+                t = event['created_at']
+                event['created_at'] = (t + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
         
         cursor.close()
         conn.close()
@@ -1185,7 +1198,7 @@ def health_check():
         'success': True,
         'message': '服务正常',
         'version': '2.0-xtu-enhanced',
-        'email_configured': email_sender.test_connection()
+        'email_configured': bool(email_sender.smtp_username and email_sender.smtp_password)
     })
 
 

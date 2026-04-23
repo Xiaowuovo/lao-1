@@ -136,12 +136,15 @@ function displayEventsOnCalendar() {
     currentEvents.forEach(event => {
         if (!event.event_time) return;
         
-        const eventDate = new Date(event.event_time);
-        const day = eventDate.getDate();
+        // event_time 已是北京时间字符串 (YYYY-MM-DD HH:MM:SS)
+        const parts = event.event_time.split(/[- :]/);
+        const eventYear = parseInt(parts[0]);
+        const eventMonth = parseInt(parts[1]) - 1;
+        const day = parseInt(parts[2]);
         
         // 检查是否是当前月份
-        if (eventDate.getMonth() === currentDate.getMonth() && 
-            eventDate.getFullYear() === currentDate.getFullYear()) {
+        if (eventMonth === currentDate.getMonth() && 
+            eventYear === currentDate.getFullYear()) {
             
             if (!eventsByDay[day]) {
                 eventsByDay[day] = [];
@@ -183,8 +186,8 @@ function displayEventsOnCalendar() {
             // 生成悬停提示内容
             let tooltipHTML = '';
             events.slice(0, 3).forEach(event => {
-                const eventTime = new Date(event.event_time);
-                const timeStr = `${eventTime.getHours().toString().padStart(2, '0')}:${eventTime.getMinutes().toString().padStart(2, '0')}`;
+                const timeParts = event.event_time ? event.event_time.split(/[- :]/) : [];
+                const timeStr = timeParts.length >= 5 ? `${timeParts[3]}:${timeParts[4]}` : '待定';
                 const conflictIcon = event.has_conflict ? '⚠️ ' : '';
                 
                 tooltipHTML += `
@@ -208,10 +211,10 @@ function displayEventsOnCalendar() {
 function getEventsByDay(day) {
     return currentEvents.filter(event => {
         if (!event.event_time) return false;
-        const eventDate = new Date(event.event_time);
-        return eventDate.getDate() === day &&
-               eventDate.getMonth() === currentDate.getMonth() &&
-               eventDate.getFullYear() === currentDate.getFullYear();
+        const parts = event.event_time.split(/[- :]/);
+        return parseInt(parts[2]) === day &&
+               (parseInt(parts[1]) - 1) === currentDate.getMonth() &&
+               parseInt(parts[0]) === currentDate.getFullYear();
     });
 }
 
@@ -280,12 +283,12 @@ function showDayEvents(day, events) {
     title.innerHTML = `📅 ${year}年${month}月${day}日 星期${weekDay} <span style="color:#667eea;">(${events.length}个事件)</span>`;
     
     // 按时间排序
-    events.sort((a, b) => new Date(a.event_time) - new Date(b.event_time));
+    events.sort((a, b) => (a.event_time || '').localeCompare(b.event_time || ''));
     
     let eventsHtml = '';
     events.forEach((event, index) => {
-        const eventTime = new Date(event.event_time);
-        const timeStr = `${eventTime.getHours().toString().padStart(2, '0')}:${eventTime.getMinutes().toString().padStart(2, '0')}`;
+        const timeParts = event.event_time ? event.event_time.split(/[- :]/) : [];
+        const timeStr = timeParts.length >= 5 ? `${timeParts[3]}:${timeParts[4]}` : '待定';
         const conflictBadge = event.has_conflict ? '<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px; margin-left:10px;">⚠️ 冲突</span>' : '';
         
         eventsHtml += `
