@@ -68,7 +68,7 @@ class ConflictDetector:
     
     def _check_event_conflicts(self, user_id: int, start_time: datetime, 
                                end_time: datetime, exclude_event_id: Optional[int]) -> List[Dict]:
-        """检查与其他已确认事件的冲突（2小时重叠窗口）"""
+        """检查与其他事件的冲突"""
         conflicts = []
         
         try:
@@ -84,23 +84,22 @@ class ConflictDetector:
                 FROM text_events te
                 WHERE te.user_id = %s
                 AND te.is_confirmed = TRUE
-                AND te.event_time IS NOT NULL
                 AND (
                     (te.event_time BETWEEN %s AND %s)
                     OR (DATE_ADD(te.event_time, INTERVAL 2 HOUR) BETWEEN %s AND %s)
                     OR (%s BETWEEN te.event_time AND DATE_ADD(te.event_time, INTERVAL 2 HOUR))
                 )
             """
-            
+
             params = [user_id, start_time, end_time, start_time, end_time, start_time]
-            
+
             if exclude_event_id:
                 query += " AND te.event_id != %s"
                 params.append(exclude_event_id)
-            
+
             cursor.execute(query, params)
             events = cursor.fetchall()
-            
+
             for event in events:
                 t = event['event_time']
                 time_str = t.strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
@@ -109,7 +108,7 @@ class ConflictDetector:
                     'id': event['event_id'],
                     'title': event['event_title'],
                     'time': time_str,
-                    'location': event['event_location'] or '未指定',
+                    'location': event['event_location'] or '未指定'
                 })
             
             cursor.close()
