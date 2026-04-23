@@ -202,11 +202,12 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                             
                             cursor.execute("""
                                 INSERT INTO reminder_tasks 
-                                (event_id, user_id, reminder_time, advance_minutes, reminder_method)
-                                VALUES (%s, %s, %s, %s, %s)
-                            """, (event_id, user_id, reminder_time, 30, 'web'))
-                        except:
-                            pass
+                                (event_id, user_id, reminder_time, advance_minutes, reminder_method, status)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                            """, (event_id, user_id, reminder_time, 30, 'web', 'pending'))
+                            print(f"✓ 为重复事件创建提醒任务: event_id={event_id}, reminder_time={reminder_time}")
+                        except Exception as e:
+                            print(f"✗ 为重复事件创建提醒任务失败: {e}")
                 
                 conn.commit()
                 cursor.close()
@@ -258,11 +259,13 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                         
                         cursor.execute("""
                             INSERT INTO reminder_tasks 
-                            (event_id, user_id, reminder_time, advance_minutes, reminder_method)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (event_id, user_id, reminder_time, 30, 'web'))
-                    except:
-                        pass  # 如果时间解析失败，跳过创建提醒
+                            (event_id, user_id, reminder_time, advance_minutes, reminder_method, status)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (event_id, user_id, reminder_time, 30, 'web', 'pending'))
+                        print(f"✓ 自动创建提醒任务成功: event_id={event_id}, reminder_time={reminder_time}")
+                    except Exception as e:
+                        print(f"✗ 自动创建提醒任务失败: {e}")
+                        # 不影响事件保存，继续执行
                 
                 conn.commit()
                 cursor.close()
