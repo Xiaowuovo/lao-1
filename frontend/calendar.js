@@ -161,16 +161,26 @@ function displayEventsOnCalendar() {
         if (dotsContainer && tooltipContainer) {
             const events = eventsByDay[day];
             
+            const hasAnyConflict = events.some(e => e.has_conflict);
+
+            // 显示冲突警告图标
+            if (hasAnyConflict) {
+                const conflictBadge = document.createElement('div');
+                conflictBadge.className = 'conflict-badge';
+                conflictBadge.title = '有时间冲突事件';
+                conflictBadge.textContent = '⚠️';
+                conflictBadge.style.cssText = 'font-size:12px; position:absolute; top:2px; right:2px; line-height:1;';
+                dotsContainer.parentElement.style.position = 'relative';
+                dotsContainer.parentElement.appendChild(conflictBadge);
+            }
+
             // 显示标记点（最多显示5个）
             events.slice(0, 5).forEach(event => {
                 const dot = document.createElement('div');
                 dot.className = 'event-dot';
-                
-                // 检查是否有冲突
                 if (event.has_conflict) {
                     dot.classList.add('conflict');
                 }
-                
                 dotsContainer.appendChild(dot);
             });
             
@@ -188,10 +198,11 @@ function displayEventsOnCalendar() {
             events.slice(0, 3).forEach(event => {
                 const timeParts = event.event_time ? event.event_time.split(/[- :]/) : [];
                 const timeStr = timeParts.length >= 5 ? `${timeParts[3]}:${timeParts[4]}` : '待定';
+                const conflictStyle = event.has_conflict ? 'color:#e74c3c; font-weight:600;' : '';
                 const conflictIcon = event.has_conflict ? '⚠️ ' : '';
                 
                 tooltipHTML += `
-                    <div class="tooltip-event">
+                    <div class="tooltip-event" style="${conflictStyle}">
                         <span class="tooltip-time">${timeStr}</span>
                         ${conflictIcon}${event.event_title}
                     </div>
@@ -289,19 +300,24 @@ function showDayEvents(day, events) {
     events.forEach((event, index) => {
         const timeParts = event.event_time ? event.event_time.split(/[- :]/) : [];
         const timeStr = timeParts.length >= 5 ? `${timeParts[3]}:${timeParts[4]}` : '待定';
-        const conflictBadge = event.has_conflict ? '<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px; margin-left:10px;">⚠️ 冲突</span>' : '';
+        const conflictBadge = event.has_conflict
+            ? '<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px; margin-left:8px;">⚠️ 冲突</span>'
+            : '';
+        const borderColor = event.has_conflict ? '#e74c3c' : '#667eea';
+        const bgColor = event.has_conflict ? '#fff5f5' : 'transparent';
         
         eventsHtml += `
-            <div class="event-detail-row" style="cursor:pointer; border-left: 4px solid ${event.has_conflict ? '#e74c3c' : '#667eea'};" onclick='showEventDetails(${JSON.stringify(event)})'>
+            <div class="event-detail-row" style="cursor:pointer; border-left:4px solid ${borderColor}; background:${bgColor}; padding:10px 12px; margin-bottom:8px; border-radius:0 6px 6px 0;" onclick='showEventDetails(${JSON.stringify(event)})'>
                 <div style="flex:1;">
-                    <div style="font-weight:700; font-size:16px; margin-bottom:5px;">
+                    <div style="font-weight:700; font-size:15px; margin-bottom:4px;">
                         ${index + 1}. ${event.event_title} ${conflictBadge}
                     </div>
                     <div style="color:#7f8c8d; font-size:13px; display:flex; gap:15px; flex-wrap:wrap;">
-                        <span>� ${timeStr}</span>
-                        <span>�📍 ${event.standard_location || event.event_location || '待定'}</span>
+                        <span>⏰ ${timeStr}</span>
+                        <span>📍 ${event.standard_location || event.event_location || '待定'}</span>
                         <span>📋 ${event.activity_type || '通知'}</span>
                     </div>
+                    ${event.has_conflict ? '<div style="color:#e74c3c; font-size:12px; margin-top:4px;">该事件与其他时间安排存在冲突，请及时调整</div>' : ''}
                 </div>
             </div>
         `;

@@ -68,7 +68,7 @@ class ConflictDetector:
     
     def _check_event_conflicts(self, user_id: int, start_time: datetime, 
                                end_time: datetime, exclude_event_id: Optional[int]) -> List[Dict]:
-        """检查与其他事件的冲突"""
+        """检查与其他已确认事件的冲突（2小时重叠窗口）"""
         conflicts = []
         
         try:
@@ -80,12 +80,11 @@ class ConflictDetector:
                     te.event_id,
                     te.event_title,
                     te.event_time,
-                    te.event_location,
-                    rt.status
+                    te.event_location
                 FROM text_events te
-                JOIN reminder_tasks rt ON te.event_id = rt.event_id
-                WHERE rt.user_id = %s
-                AND rt.status NOT IN ('completed', 'cancelled')
+                WHERE te.user_id = %s
+                AND te.is_confirmed = TRUE
+                AND te.event_time IS NOT NULL
                 AND (
                     (te.event_time BETWEEN %s AND %s)
                     OR (DATE_ADD(te.event_time, INTERVAL 2 HOUR) BETWEEN %s AND %s)
@@ -103,13 +102,14 @@ class ConflictDetector:
             events = cursor.fetchall()
             
             for event in events:
+                t = event['event_time']
+                time_str = t.strftime('%Y-%m-%d %H:%M') if hasattr(t, 'strftime') else str(t)
                 conflicts.append({
                     'type': 'event',
                     'id': event['event_id'],
                     'title': event['event_title'],
-                    'time': event['event_time'].strftime('%Y-%m-%d %H:%M'),
+                    'time': time_str,
                     'location': event['event_location'] or '未指定',
-                    'status': event['status']
                 })
             
             cursor.close()

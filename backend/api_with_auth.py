@@ -1094,7 +1094,7 @@ def process_file():
 # ==================== 湘潭大学增强功能 ====================
 
 from xtu_api_routes import add_xtu_routes
-add_xtu_routes(app, auth_manager, get_db_connection, login_required)
+add_xtu_routes(app, auth_manager, get_db_connection, login_required, conflict_detector)
 
 
 # ==================== 邮件提醒功能 ====================

@@ -147,12 +147,12 @@ async function extractEvents() {
         if (result.success && result.event_card) {
             currentEventCard = result.event_card;
             
-            // 检查时间冲突
+            // 检查时间冲突（先检测再渲染）
             if (result.event_card.time) {
                 await checkConflicts(result.event_card.time);
             }
             
-            displayConfirmationCard(result.event_card);
+            displayConfirmationCard(currentEventCard);
         } else {
             container.innerHTML = `<div class="empty-state"><p>${result.message || '提取失败'}</p></div>`;
             alert(`提取失败: ${result.message || '未知错误'}`);
@@ -451,23 +451,24 @@ async function confirmBatchEventByIndex(index) {
     }
 }
 
-// 检查时间冲突
-async function checkConflicts(eventTime) {
-    if (!eventTime) return;
+// 检查时间冲突（仅更新 currentEventCard，不自动渲染）
+async function checkConflicts(eventTime, eventId) {
+    if (!eventTime || !currentEventCard) return;
     
     try {
         const response = await fetch(`${API_BASE_URL}/xtu/checkConflict`, {
             method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ event_time: eventTime })
+            body: JSON.stringify({ event_time: eventTime, event_id: eventId || null })
         });
         
         const result = await response.json();
         
-        if (result.success && result.has_conflict) {
-            // 存储冲突信息以便显示
-            currentEventCard.conflicts = result.conflicts;
-            currentEventCard.has_conflict = true;
+        if (result.success) {
+            currentEventCard.has_conflict = result.has_conflict;
+            currentEventCard.conflict_level = result.conflict_level;
+            currentEventCard.conflicts = result.conflicts || [];
+            currentEventCard.conflict_message = result.message || '';
         }
     } catch (error) {
         console.error('冲突检测失败:', error);
@@ -484,25 +485,26 @@ function displayConfirmationCard(eventCard) {
     // 准备冲突警告HTML
     let conflictWarningHtml = '';
     if (eventCard.has_conflict && eventCard.conflicts && eventCard.conflicts.length > 0) {
-        const criticalConflicts = eventCard.conflicts.filter(c => c.conflict_level === 'critical');
-        const warningConflicts = eventCard.conflicts.filter(c => c.conflict_level === 'warning');
-        
-        let conflictText = '';
-        if (criticalConflicts.length > 0) {
-            conflictText = `<strong style="color:#e74c3c;">严重冲突！</strong>该时间段有 ${criticalConflicts.length} 个事件时间非常接近（30分钟内）`;
-        } else if (warningConflicts.length > 0) {
-            conflictText = `<strong style="color:#f39c12;">时间冲突警告！</strong>该时间段有 ${warningConflicts.length} 个事件时间较接近（1小时内）`;
-        }
+        const isCritical = eventCard.conflict_level === 'critical';
+        const bgColor = isCritical ? '#fdecea' : '#fff3cd';
+        const borderColor = isCritical ? '#e74c3c' : '#ffc107';
+        const icon = isCritical ? '🚫' : '⚠️';
+        const label = isCritical
+            ? `<strong style="color:#e74c3c;">严重冲突！</strong>该时间与课程时间重叠`
+            : `<strong style="color:#e67e22;">时间冲突警告！</strong>该时间与以下事件重叠（2小时内）`;
         
         conflictWarningHtml = `
-            <div class="warning-badge" style="display:block; margin-bottom:15px; background:#fff3cd; border-left-color:#ffc107;">
-                ⚠️ ${conflictText}<br>
-                <div style="margin-top:8px; font-size:13px;">
+            <div style="background:${bgColor}; border-left:4px solid ${borderColor}; padding:10px 14px; border-radius:6px; margin-bottom:15px; font-size:13px;">
+                ${icon} ${label}
+                <div style="margin-top:8px;">
                     ${eventCard.conflicts.slice(0, 3).map(c => `
-                        <div style="margin:5px 0;">
-                            • ${c.event_title} - ${c.event_time} (相差${c.time_diff_minutes}分钟)
+                        <div style="margin:4px 0; color:#555;">
+                            • <strong>${c.title}</strong> — ${c.time}
+                            ${c.location && c.location !== '未指定' ? `<span style="color:#888;"> @ ${c.location}</span>` : ''}
+                            ${c.type === 'schedule' ? '<span style="background:#e74c3c;color:white;font-size:11px;padding:1px 5px;border-radius:3px;margin-left:4px;">课表冲突</span>' : ''}
                         </div>
                     `).join('')}
+                    ${eventCard.conflicts.length > 3 ? `<div style="color:#888;">...还有 ${eventCard.conflicts.length - 3} 项冲突</div>` : ''}
                 </div>
             </div>
         `;
@@ -669,7 +671,7 @@ function editField(fieldName) {
     if (input) { input.focus(); input.select && input.select(); }
 }
 
-function saveInlineEdit(fieldName) {
+async function saveInlineEdit(fieldName) {
     const input = document.getElementById(`inline-editor-${fieldName}`);
     if (!input) return;
     
@@ -701,6 +703,11 @@ function saveInlineEdit(fieldName) {
         currentEventCard.required_fields_missing.push('地点');
     }
     
+    // 时间字段修改后重新检测冲突
+    if (fieldName === 'time' && currentEventCard.time) {
+        await checkConflicts(currentEventCard.time);
+    }
+    
     displayConfirmationCard(currentEventCard);
 }
 
@@ -730,10 +737,16 @@ async function confirmEvent() {
         const result = await response.json();
         
         if (result.success) {
+            // 显示冲突提醒
+            let conflictNotice = '';
+            if (result.has_conflict && result.conflicts && result.conflicts.length > 0) {
+                const names = result.conflicts.slice(0, 2).map(c => c.title).join('、');
+                conflictNotice = `\n\n⚠️ 注意：该时间段与 [${names}] 存在冲突，请及时调整！`;
+            }
             if (result.is_duplicate) {
-                alert('检测到重复事件！\n已更新事件信息，提醒已自动创建。\n事件ID: ' + result.event_id);
+                alert('检测到重复事件，已更新信息。' + conflictNotice);
             } else {
-                alert('事件已确认并保存！\n提醒已自动创建。\n事件ID: ' + result.event_id);
+                alert('事件已确认并保存！' + conflictNotice);
             }
             
             // 清空表单

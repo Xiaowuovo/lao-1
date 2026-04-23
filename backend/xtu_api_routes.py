@@ -32,7 +32,7 @@ def _parse_event_time(time_str):
     return None
 
 
-def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
+def add_xtu_routes(app, auth_manager, get_db_connection, login_required, conflict_detector=None):
     """添加湘大增强路由"""
     
     @app.route('/api/xtu/extractEvents', methods=['POST'])
@@ -148,6 +148,40 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
             return jsonify({'success': False, 'message': f'批量提取失败: {str(e)}'}), 500
     
     
+    @app.route('/api/xtu/checkConflict', methods=['POST'])
+    @login_required
+    def xtu_check_conflict():
+        """预检时间冲突"""
+        try:
+            user_id = request.current_user['user_id']
+            event_time_str = request.json.get('event_time')
+            event_id = request.json.get('event_id')  # 编辑时排除自己
+
+            if not event_time_str:
+                return jsonify({'success': True, 'has_conflict': False, 'conflicts': []})
+
+            event_time_obj = _parse_event_time(event_time_str)
+            if not event_time_obj:
+                return jsonify({'success': True, 'has_conflict': False, 'conflicts': []})
+
+            if conflict_detector is None:
+                return jsonify({'success': True, 'has_conflict': False, 'conflicts': []})
+
+            result = conflict_detector.check_conflicts(
+                user_id, event_time_obj, 120, event_id
+            )
+
+            return jsonify({
+                'success': True,
+                'has_conflict': result['has_conflict'],
+                'conflict_level': result['conflict_level'],
+                'conflicts': result['conflicts'],
+                'message': result['message']
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)}), 500
+
+
     @app.route('/api/xtu/confirmEvent', methods=['POST'])
     @login_required
     def xtu_confirm_event():
@@ -268,6 +302,17 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                 except:
                     pass  # 归档表写入失败不影响主流程
                 
+                # 冲突检测并更新 has_conflict
+                conflict_info = {'has_conflict': False, 'conflicts': []}
+                if conflict_detector and event_time_obj:
+                    conflict_info = conflict_detector.check_conflicts(
+                        user_id, event_time_obj, 120, event_id
+                    )
+                    cursor.execute(
+                        "UPDATE text_events SET has_conflict = %s WHERE event_id = %s",
+                        (1 if conflict_info['has_conflict'] else 0, event_id)
+                    )
+
                 conn.commit()
                 cursor.close()
                 conn.close()
@@ -276,7 +321,11 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                     'success': True,
                     'message': '检测到重复事件，已更新信息',
                     'event_id': event_id,
-                    'is_duplicate': True
+                    'is_duplicate': True,
+                    'has_conflict': conflict_info['has_conflict'],
+                    'conflict_level': conflict_info.get('conflict_level', 'none'),
+                    'conflicts': conflict_info.get('conflicts', []),
+                    'conflict_message': conflict_info.get('message', '')
                 })
             else:
                 # 新事件，插入数据库
@@ -340,6 +389,19 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                 except:
                     pass  # 归档表写入失败不影响主流程
                 
+                # 冲突检测并更新 has_conflict
+                conflict_info = {'has_conflict': False, 'conflicts': []}
+                if conflict_detector and event_time_obj:
+                    conflict_info = conflict_detector.check_conflicts(
+                        user_id, event_time_obj, 120, event_id
+                    )
+                    if conflict_info['has_conflict']:
+                        cursor.execute(
+                            "UPDATE text_events SET has_conflict = 1 WHERE event_id = %s",
+                            (event_id,)
+                        )
+                        conn.commit()
+
                 conn.commit()
                 cursor.close()
                 conn.close()
@@ -348,7 +410,11 @@ def add_xtu_routes(app, auth_manager, get_db_connection, login_required):
                     'success': True,
                     'message': '事件已确认并保存',
                     'event_id': event_id,
-                    'is_duplicate': False
+                    'is_duplicate': False,
+                    'has_conflict': conflict_info['has_conflict'],
+                    'conflict_level': conflict_info.get('conflict_level', 'none'),
+                    'conflicts': conflict_info.get('conflicts', []),
+                    'conflict_message': conflict_info.get('message', '')
                 })
         
         except Exception as e:
